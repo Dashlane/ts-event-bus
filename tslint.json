@@ -1,0 +1,35 @@
+{
+    "rules": {
+      "class-name": true,
+      "forin": true,
+      "label-position": true,
+      "member-access": false,
+      "no-arg": true,
+      "no-bitwise": true,
+      "no-conditional-assignment": true,
+      "no-debugger": true,
+      "no-duplicate-variable": true,
+      "no-eval": true,
+      "no-inferrable-types": true,
+      "no-shadowed-variable": false,
+      "no-switch-case-fall-through": true,
+      "no-trailing-whitespace": true,
+      "no-unused-expression": true,
+      "no-unused-variable": true,
+      "radix": true,
+      "semicolon": [true, "never"],
+      "trailing-comma": [true, {"multiline": "never", "singleline": "never"}],
+      "triple-equals": true,
+      "use-isnan": true,
+      "indent": [
+        true,
+        "spaces",
+        4
+      ],
+      "linebreak-style": [
+        true,
+        "LF"
+      ],
+      "eofline": true
+    }
+  }

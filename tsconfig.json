@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+        "outDir": ".",
+        "target": "es2015",
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "isolatedModules": false,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "declaration": true,
+        "noImplicitAny": true,
+        "removeComments": true,
+        "noEmit": false,
+        "noEmitOnError": false,
+        "noLib": false,
+        "preserveConstEnums": true,
+        "suppressImplicitAnyIndexErrors": true,
+        "sourceMap": false,
+        "strictNullChecks": true
+    },
+    "exclude": [
+        "node_modules",
+        "build"
+    ],
+    "include": [
+        "src"
+    ],
+    "compileOnSave": false
+}
