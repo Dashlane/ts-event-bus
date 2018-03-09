@@ -1,6 +1,6 @@
 {
   "name": "ts-event-bus",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Distributed messaging in Typescript",
   "main": "build/index.js",
   "typings": "build/index.d.ts",
