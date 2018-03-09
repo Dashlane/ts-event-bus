@@ -1,7 +1,8 @@
 # ts-event-bus
-[<img src="./by_dashlane.svg" width="220"/>](https://www.dashlane.com/)
+[![by Dashlane](https://rawgit.com/dashlane/ts-event-bus/master/by_dashlane.svg)](https://www.dashlane.com/)
 
 [![Build Status](https://travis-ci.org/Dashlane/ts-event-bus.svg?branch=master)](https://travis-ci.org/Dashlane/ts-event-bus)
+[![Dependency Status](https://david-dm.org/Dashlane/ts-event-bus.svg)](https://david-dm.org/Dashlane/ts-event-bus)
 
 Distributed messaging in Typescript
 
@@ -139,7 +140,7 @@ export default MyCombinedEvents
 ## Using and Implementing Channels
 
 `ts-event-bus` comes with an abstract class [GenericChannel](./src/Channel.ts).
-To implement your own channel create a new class extending `GenericChannel`, and call the method given by the abstract class: _connected(), _disconnected(), _error(e: Error) and _messageReceived(data: any).
+To implement your own channel create a new class extending `GenericChannel`, and call the method given by the abstract class: `_connected()`, `_disconnected()`, `_error(e: Error)` and `_messageReceived(data: any)`.
 
 Basic WebSocket Channel example:
 ```typescript
