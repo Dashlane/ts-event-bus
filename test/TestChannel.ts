@@ -1,5 +1,4 @@
-import {GenericChannel} from './../src/Channel'
-import {TransportMessage} from './../src/Transport'
+import {TransportMessage, GenericChannel} from './../src/'
 import * as sinon from 'sinon'
 
 export class TestChannel extends GenericChannel {
@@ -23,7 +22,12 @@ export class TestChannel extends GenericChannel {
     }
 
     public callMessageReceived()  {
-        this._messageReceived({ type: 'test' })
+        this._messageReceived({
+            type: 'error',
+            slotName: 'test',
+            id: '1',
+            message: 'error'
+        })
     }
 
     public callError() {

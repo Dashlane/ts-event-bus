@@ -1,6 +1,7 @@
 import 'should'
 
-import { Transport, TransportMessage } from './../src/Transport'
+import { Transport } from './../src/Transport'
+import { TransportMessage } from './../src/Message'
 import { TestChannel } from './TestChannel'
 import * as sinon from 'sinon'
 import { createEventBus } from '../src/Events'
