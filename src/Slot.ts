@@ -34,17 +34,17 @@ export function slot<RequestData=void, ResponseData=void>(): Slot<RequestData, R
     return FAKE_SLOT
 }
 
-export function connectSlot<T=void>(slotName: string, transports: Transport[]): Slot<T> {
+export function connectSlot<T=void, T2=void>(slotName: string, transports: Transport[]): Slot<T, T2> {
 
     // These will be all the handlers for this slot (eg. all the callbacks registered with `Slot.on()`)
     const handlers = [] as Handler<any, any>[]
 
     // For each transport we create a Promise that will be fulfilled only
     // when the far-end has registered a handler.
-    // This prevents `triggers` from firing *before* any far-end is listeninng.
+    // This prevents `triggers` from firing *before* any far-end is listening.
     let remoteHandlersConnected = [] as Promise<any>[]
 
-    // Signal to the transport that we will accept handlers for this slotName
+    // Signal to all transports that we will accept handlers for this slotName
     transports.forEach(t => {
 
         // Variable holds the promise's `resolve` function. A little hack
@@ -110,5 +110,5 @@ export function connectSlot<T=void>(slotName: string, transports: Transport[]): 
 
     }
 
-    return trigger as Slot<T>
+    return trigger as Slot<T, T2>
 }

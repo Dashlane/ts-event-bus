@@ -96,8 +96,13 @@ export class Transport {
 
             // When the far end disconnects, remove all the handlers it had set
             this._unregisterHandlers()
-            this._rejectAllPendingRequests()
+            this._rejectAllPendingRequests(new Error(`${ERRORS.REMOTE_CONNECTION_CLOSED}`))
         })
+
+        // When an error happens on the channel, reject all pending requests
+        // (their integrity cannot be guaranteed since onError does not link
+        // the error to a requestId)
+        this._channel.onError(e => this._rejectAllPendingRequests(e))
     }
 
     /**
@@ -121,7 +126,8 @@ export class Transport {
                 slotName,
                 id,
                 data: response
-            }))
+            })
+            )
 
             // If the resulting promise is rejected, send an error to the far end
             .catch((error: Error) => this._channel.send({
@@ -165,7 +171,6 @@ export class Transport {
      * to the far end, and keep references to the returned Promise's resolution
      * and rejection function
      *
-     * TODO: handle timeout
      */
     private _registerRemoteHandler({ slotName }: TransportMessage): void {
         const addHandler = this._remoteHandlerRegistrationCallbacks[slotName]
@@ -222,10 +227,10 @@ export class Transport {
             })
     }
 
-    private _rejectAllPendingRequests(): void {
+    private _rejectAllPendingRequests(e: Error): void {
         Object.keys(this._pendingRequests).forEach(slotName => {
             Object.keys(this._pendingRequests[slotName]).forEach(id => {
-                this._pendingRequests[slotName][id].reject(new Error(`${ERRORS.REMOTE_CONNECTION_CLOSED} on ${slotName}`))
+                this._pendingRequests[slotName][id].reject(e)
             })
             this._pendingRequests[slotName] = {}
         })

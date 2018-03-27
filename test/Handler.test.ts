@@ -70,16 +70,14 @@ describe('callHandlers()', () => {
     })
 
     context('with multiple handlers', () => {
-        it('should call all of them with the same given data', () => {
+        it('should call all of them with the same given data', async () => {
             const handlerSpies = [sinon.spy(), sinon.spy()]
             const data = 'my-data'
-            return callHandlers(data, handlerSpies)
-                .then(() => {
-                    sinon.assert.calledOnce(handlerSpies[0])
-                    sinon.assert.calledOnce(handlerSpies[1])
-                    sinon.assert.calledWith(handlerSpies[0], data)
-                    sinon.assert.calledWith(handlerSpies[1], data)
-                })
+            await callHandlers(data, handlerSpies)
+            sinon.assert.calledOnce(handlerSpies[0])
+            sinon.assert.calledOnce(handlerSpies[1])
+            sinon.assert.calledWith(handlerSpies[0], data)
+            sinon.assert.calledWith(handlerSpies[1], data)
         })
     })
 })

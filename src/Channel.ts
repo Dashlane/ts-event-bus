@@ -6,7 +6,7 @@ export interface Channel {
     onData: (cb: OnMessageCallback) => void
     onConnect: (cb: () => void) => void
     onDisconnect: (cb: () => void) => void
-    onError?: (e: Error) => void
+    onError: (cb: (e: Error) => void) => void
 }
 
 export abstract class GenericChannel implements Channel {
@@ -16,8 +16,8 @@ export abstract class GenericChannel implements Channel {
     private _onMessageCallbacks: OnMessageCallback[] = []
     private _onConnectCallbacks: Function[] = []
     private _onDisconnectCallbacks: Function[] = []
+    private _onErrorCallbacks: Function[] = []
     private _ready = false
-    public onError: (e: Error) => void
     public abstract send(message: {}): void
 
     public onData(cb: OnMessageCallback): void {
@@ -37,14 +37,16 @@ export abstract class GenericChannel implements Channel {
         this._onDisconnectCallbacks.push(cb)
     }
 
+    public onError(cb: Function): void {
+        this._onErrorCallbacks.push(cb)
+    }
+
     protected _messageReceived(message: {}) {
         this._onMessageCallbacks.forEach(cb => cb(message))
     }
 
     protected _error(error: any) {
-        if (this.onError) {
-            this.onError(error)
-        }
+        this._onErrorCallbacks.forEach(cb => cb(error))
     }
 
     protected _connected() {
