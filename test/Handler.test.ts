@@ -4,6 +4,7 @@ import * as sinon from 'sinon'
 import { callHandlers } from '../src/Handler'
 
 describe('callHandlers()', () => {
+
     context('with no handler', () => {
         it('should return a Promise', () => {
             const result = callHandlers('my-data', [])
@@ -12,78 +13,71 @@ describe('callHandlers()', () => {
     })
 
     context('with one handler', () => {
-        it('should call this handler with the given data', (done) => {
+
+        it('should call this handler with the given data', () => {
             const handlerSpy = sinon.spy()
             const data = 'my-data'
-            const result = callHandlers(data, [handlerSpy])
+            return callHandlers(data, [handlerSpy])
                 .then(() => {
                     sinon.assert.calledOnce(handlerSpy)
                     sinon.assert.calledWith(handlerSpy, data)
-                    done()
                 })
-                .catch(err => { throw new Error(err) })
         })
 
         context('which throw an error', () => {
-            it('should return a rejected promise', (done) => {
+
+            it('should return a rejected promise', () => {
                 const error = new Error('fail')
                 const handlerStub = () => {
                     throw error
                 }
-
-                callHandlers('my-data', [handlerStub])
+                return callHandlers('my-data', [handlerStub])
                     .catch(err => {
                         err.should.equal(error)
-                        done()
                     })
             })
         })
 
-        context('which return a Promise', () => {
-            it('should return it', (done) => {
+        context('which returns a Promise', () => {
+
+            it('should return it', () => {
                 const promise = new Promise((resolve) => { resolve('toto') })
                 const handlerStub = sinon.stub().returns(promise)
 
                 const result = callHandlers('my-data', [handlerStub])
                 result.should.equal(promise)
-                result.then(res => {
+                return result.then(res => {
                     res.should.equal('toto')
-                    done()
                 })
             })
+
         })
 
         context('which doesnt return a Promise', () => {
-            it('should return a fullfilled promise with the result', (done) => {
+            it('should return a fullfilled promise with the result', () => {
                 const data = 'result'
                 const handlerStub = sinon.stub().returns(data)
 
                 const result = callHandlers('my-data', [handlerStub])
                 result.should.have.property('then').which.is.a.Function()
 
-                result
+                return result
                     .then(res => {
                         res.should.equal(data)
-                        done()
                     })
-                    .catch(err => { throw new Error(err) })
             })
         })
     })
 
     context('with multiple handlers', () => {
-        it('should call all of them with the same given data', (done) => {
+        it('should call all of them with the same given data', async () => {
             const handlerSpies = [sinon.spy(), sinon.spy()]
             const data = 'my-data'
-            const result = callHandlers(data, handlerSpies)
-                .then(() => {
-                    sinon.assert.calledOnce(handlerSpies[0])
-                    sinon.assert.calledOnce(handlerSpies[1])
-                    sinon.assert.calledWith(handlerSpies[0], data)
-                    sinon.assert.calledWith(handlerSpies[1], data)
-                    done()
-                })
-                .catch(err => { throw new Error(err) })
+            await callHandlers(data, handlerSpies)
+            sinon.assert.calledOnce(handlerSpies[0])
+            sinon.assert.calledOnce(handlerSpies[1])
+            sinon.assert.calledWith(handlerSpies[0], data)
+            sinon.assert.calledWith(handlerSpies[1], data)
         })
     })
 })
