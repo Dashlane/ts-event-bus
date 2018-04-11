@@ -1,5 +1,12 @@
 import { Handler, callHandlers } from './Handler'
 import { Channel } from './Channel'
+import {
+    TransportRegistrationMessage,
+    TransportError,
+    TransportRequest,
+    TransportResponse,
+    TransportMessage
+} from './Message'
 
 let _ID = 0
 
@@ -16,16 +23,6 @@ const ERRORS = {
     REMOTE_CONNECTION_CLOSED: 'REMOTE_CONNECTION_CLOSED',
     CHANNEL_NOT_READY: 'CHANNEL_NOT_READY'
 }
-
-export type TransportRequest = { type: 'request', slotName: string, id: string, data: any }
-export type TransportResponse = { type: 'response', slotName: string, id: string, data: any }
-export type TransportError = { type: 'error', slotName: string, id: string, message: string, stack?: string }
-export type TransportRegistrationMessage = { type: 'handler_registered', slotName: string }
-export type TransportMessage =
-    TransportRegistrationMessage
-    | TransportRequest
-    | TransportResponse
-    | TransportError
 
 export type PendingRequest = {
     resolve: (data?: any) => void;

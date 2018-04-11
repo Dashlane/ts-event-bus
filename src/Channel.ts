@@ -1,8 +1,10 @@
+import { TransportMessage } from './Message'
+
 export type OnMessageCallback = (message: {}) => void
 
 export interface Channel {
     timeout?: number
-    send: (message: {}) => void
+    send: (message: TransportMessage) => void
     onData: (cb: OnMessageCallback) => void
     onConnect: (cb: () => void) => void
     onDisconnect: (cb: () => void) => void
@@ -18,7 +20,7 @@ export abstract class GenericChannel implements Channel {
     private _onDisconnectCallbacks: Function[] = []
     private _onErrorCallbacks: Function[] = []
     private _ready = false
-    public abstract send(message: {}): void
+    public abstract send(message: TransportMessage): void
 
     public onData(cb: OnMessageCallback): void {
         if (this._onMessageCallbacks.indexOf(cb) === -1) {
@@ -41,7 +43,7 @@ export abstract class GenericChannel implements Channel {
         this._onErrorCallbacks.push(cb)
     }
 
-    protected _messageReceived(message: {}) {
+    protected _messageReceived(message: TransportMessage) {
         this._onMessageCallbacks.forEach(cb => cb(message))
     }
 
