@@ -102,6 +102,10 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
 
         // Return the unsubscription function
         return () => {
+
+            // Unregister remote handler with all of our remote transports
+            transports.forEach(t => t.unregisterHandler(slotName, handler))
+
             const ix = handlers.indexOf(handler)
             if (ix !== -1) {
                 handlers.splice(ix, 1)

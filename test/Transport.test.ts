@@ -24,7 +24,7 @@ describe('Transport', () => {
 
     })
 
-    context('handler registration and requests', () => {
+    context('handler registration, requests and unregistration', () => {
 
         const channel = new TestChannel()
         const transport = new Transport(channel)
@@ -71,10 +71,39 @@ describe('Transport', () => {
             })
         })
 
-        context('adding and using a remote handler', () => {
+        it('should send a handler_unregistered message when a local handler is unregistered', () => {
+            Object.keys(handlers).forEach(slotName => {
+                transport.unregisterHandler(slotName, handlers[slotName])
+                channel.sendSpy.calledWith({
+                    type: 'handler_unregistered',
+                    slotName
+                }).should.be.True()
+            })
+        })
+
+        it('should not call the unregistered handler when a request is received', async () => {
+            const slotName = 'buildCelery'
+            const handler = handlers[slotName]
+            const request: TransportMessage = {
+                type: 'request',
+                slotName,
+                id: '5',
+                data: {
+                    height: 5,
+                    constitution: 'strong'
+                }
+            }
+            handler.resetHistory()
+            channel.fakeReceive(request)
+            await Promise.resolve() // yield to ts-event-bus internals
+            handler.called.should.be.False()
+        })
+
+        context('adding, using and removing a remote handler', () => {
 
             const slotName = 'getCarrotStock'
             const addLocalHandler = sinon.spy()
+            const removeLocalHandler = sinon.spy()
             let localHandler: (...args: any[]) => Promise<any>
 
             it('should add a local handler when a remote handler registration is received', () => {
@@ -121,6 +150,15 @@ describe('Transport', () => {
                         throw new Error('Promise should have been rejected')
                     })
                     .catch(err => `${err}`.should.eql('Error: all out of blue on getCarrotStock'))
+            })
+
+            it('should remove a local handler when a remote handler unregistration is received', () => {
+                transport.onRemoteHandlerUnregistered(slotName, removeLocalHandler)
+                channel.fakeReceive({
+                    type: 'handler_unregistered',
+                    slotName
+                })
+                removeLocalHandler.called.should.be.True()
             })
         })
 
