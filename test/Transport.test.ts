@@ -4,6 +4,7 @@ import { Transport } from './../src/Transport'
 import { TransportMessage } from './../src/Message'
 import { TestChannel } from './TestChannel'
 import * as sinon from 'sinon'
+import { SinonSpy } from 'sinon'
 import { createEventBus } from '../src/Events'
 import { slot } from '../src/Slot'
 
@@ -26,17 +27,23 @@ describe('Transport', () => {
 
     context('handler registration, requests and unregistration', () => {
 
-        const channel = new TestChannel()
-        const transport = new Transport(channel)
-        const handlers = {
-            buildCelery: sinon.spy(() => ({ color: 'blue' })),
-            getCarrotStock: sinon.spy()
-        }
+        let channel: TestChannel
+        let transport: Transport
+        let slots: { [slotName: string]: SinonSpy[] }
 
-        it('should send a handler_registered message when a local handler is registered', () => {
+        beforeEach(() => {
+            slots = {
+                buildCelery: [sinon.spy(() => ({ color: 'blue' }))],
+                getCarrotStock: [sinon.spy(), sinon.spy()]
+            }
+            channel = new TestChannel()
+            transport = new Transport(channel)
             channel.callConnected()
-            Object.keys(handlers).forEach(slotName => {
-                transport.registerHandler(slotName, handlers[slotName])
+        })
+
+        it('should send a handler_registered message for each slot when a local handler is registered', () => {
+            Object.keys(slots).forEach(slotName => {
+                transport.registerHandler(slotName, slots[slotName][0])
                 channel.sendSpy.calledWith({
                     type: 'handler_registered',
                     slotName
@@ -44,10 +51,25 @@ describe('Transport', () => {
             })
         })
 
+        it('should not send a handler_registered message when an additional local handler is registered', () => {
+            const slotName = 'getCarrotStock'
+            transport.registerHandler(slotName, slots[slotName][0])
+            transport.registerHandler(slotName, slots[slotName][1])
+            channel.sendSpy
+                .withArgs({ type: 'handler_registered', slotName })
+                .calledOnce // should have been called exactly once
+                .should.be.True()
+        })
+
+
         it('should call the appropriate handler when a request is received', async () => {
+
             const slotName = 'buildCelery'
-            const handler = handlers[slotName]
-            handler.called.should.be.False()
+            const handler = slots[slotName][0]
+
+            // Register handler on slot
+            transport.registerHandler(slotName, handler)
+
             const request: TransportMessage = {
                 type: 'request',
                 slotName,
@@ -57,6 +79,7 @@ describe('Transport', () => {
                     constitution: 'strong'
                 }
             }
+
             channel.fakeReceive(request)
 
             await Promise.resolve() // yield to ts-event-bus internals
@@ -71,19 +94,33 @@ describe('Transport', () => {
             })
         })
 
-        it('should send a handler_unregistered message when a local handler is unregistered', () => {
-            Object.keys(handlers).forEach(slotName => {
-                transport.unregisterHandler(slotName, handlers[slotName])
-                channel.sendSpy.calledWith({
-                    type: 'handler_unregistered',
-                    slotName
-                }).should.be.True()
-            })
+        it('should send a handler_unregistered message when the last local handler is unregistered', () => {
+
+            const slotName = 'buildCelery'
+
+            // Register one handler on slot
+            transport.registerHandler(slotName, slots[slotName][0])
+
+            // Unregister it
+            transport.unregisterHandler(slotName, slots[slotName][0])
+
+            channel.sendSpy.calledWith({
+                type: 'handler_unregistered',
+                slotName
+            }).should.be.True()
         })
 
         it('should not call the unregistered handler when a request is received', async () => {
+
             const slotName = 'buildCelery'
-            const handler = handlers[slotName]
+            const handler = slots[slotName][0]
+
+            // Register one handler on slot
+            transport.registerHandler(slotName, handler)
+
+            // Unregister it
+            transport.unregisterHandler(slotName, slots[slotName][0])
+
             const request: TransportMessage = {
                 type: 'request',
                 slotName,
@@ -93,27 +130,46 @@ describe('Transport', () => {
                     constitution: 'strong'
                 }
             }
-            handler.resetHistory()
             channel.fakeReceive(request)
             await Promise.resolve() // yield to ts-event-bus internals
             handler.called.should.be.False()
         })
 
+        it('should not send a handler_unregistered message when an additional local handler is unregistered', () => {
+
+            const slotName = 'getCarrotStock'
+
+            // Register two handlers on slot
+            transport.registerHandler(slotName, slots[slotName][0])
+            transport.registerHandler(slotName, slots[slotName][1])
+
+            // Unregister one handler only
+            transport.unregisterHandler(slotName, slots[slotName][0])
+
+            channel.sendSpy.calledWith({
+                type: 'handler_unregistered',
+                slotName
+            }).should.be.False()
+        })
+
         context('adding, using and removing a remote handler', () => {
 
             const slotName = 'getCarrotStock'
-            const addLocalHandler = sinon.spy()
-            const removeLocalHandler = sinon.spy()
+
+            let addLocalHandler: SinonSpy
+            let removeLocalHandler: SinonSpy
             let localHandler: (...args: any[]) => Promise<any>
 
-            it('should add a local handler when a remote handler registration is received', () => {
+            beforeEach(() => {
+                addLocalHandler = sinon.spy()
+                removeLocalHandler = sinon.spy()
                 transport.onRemoteHandlerRegistered(slotName, addLocalHandler)
-                channel.fakeReceive({
-                    type: 'handler_registered',
-                    slotName
-                })
-                addLocalHandler.called.should.be.True()
+                channel.fakeReceive({ type: 'handler_registered', slotName })
                 localHandler = addLocalHandler.lastCall.args[0]
+            })
+
+            it('should add a local handler when a remote handler registration is received', () => {
+                addLocalHandler.called.should.be.True()
             })
 
             it('should resolve a local pending request when a response is received', () => {

@@ -271,14 +271,19 @@ export class Transport {
             this._localHandlers[slotName] = []
         }
         this._localHandlers[slotName].push(handler)
-
-        const registrationMessage: TransportRegistrationMessage = {
-            type: 'handler_registered',
-            slotName
-        }
-        this._localHandlerRegistrations.push(registrationMessage)
-        if (this._channelReady) {
-            this._channel.send(registrationMessage)
+        /**
+         * We notify the far end when adding the first handler only, as they
+         * only need to know if at least one handler is connected.
+         */
+        if (this._localHandlers[slotName].length === 1) {
+            const registrationMessage: TransportRegistrationMessage = {
+                type: 'handler_registered',
+                slotName
+            }
+            this._localHandlerRegistrations.push(registrationMessage)
+            if (this._channelReady) {
+                this._channel.send(registrationMessage)
+            }
         }
     }
 
@@ -290,13 +295,19 @@ export class Transport {
         if (this._localHandlers[slotName]) {
             const ix = this._localHandlers[slotName].indexOf(handler)
             if (ix > -1) {
-                this._localHandlers[slotName].splice(ix)
-                const unregistrationMessage: TransportUnregistrationMessage = {
-                    type: 'handler_unregistered',
-                    slotName
-                }
-                if (this._channelReady) {
-                    this._channel.send(unregistrationMessage)
+                this._localHandlers[slotName].splice(ix, 1)
+                /**
+                 * We notify the far end when removing the last handler only, as they
+                 * only need to know if at least one handler is connected.
+                 */
+                if (this._localHandlers[slotName].length === 0) {
+                    const unregistrationMessage: TransportUnregistrationMessage = {
+                        type: 'handler_unregistered',
+                        slotName
+                    }
+                    if (this._channelReady) {
+                        this._channel.send(unregistrationMessage)
+                    }
                 }
             }
         }
