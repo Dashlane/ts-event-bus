@@ -2,6 +2,7 @@ import { Handler, callHandlers } from './Handler'
 import { Channel } from './Channel'
 import {
     TransportRegistrationMessage,
+    TransportUnregistrationMessage,
     TransportError,
     TransportRequest,
     TransportResponse,
@@ -74,6 +75,8 @@ export class Transport {
                     return this._responseReceived(message)
                 case 'handler_registered':
                     return this._registerRemoteHandler(message)
+                case 'handler_unregistered':
+                    return this._unregisterRemoteHandler(message.slotName)
                 case 'error':
                     return this._errorReceived(message)
                 default:
@@ -92,7 +95,7 @@ export class Transport {
             this._channelReady = false
 
             // When the far end disconnects, remove all the handlers it had set
-            this._unregisterHandlers()
+            this._unregisterAllRemoteHandlers()
             this._rejectAllPendingRequests(new Error(`${ERRORS.REMOTE_CONNECTION_CLOSED}`))
         })
 
@@ -212,15 +215,19 @@ export class Transport {
         addHandler(remoteHandler)
     }
 
-    private _unregisterHandlers(): void {
+    private _unregisterRemoteHandler(slotName: string): void {
+        const unregisterRemoteHandler = this._remoteHandlerDeletionCallbacks[slotName]
+        const remoteHandler = this._remoteHandlers[slotName]
+        if (remoteHandler && unregisterRemoteHandler) {
+            unregisterRemoteHandler(remoteHandler)
+            delete this._remoteHandlers[slotName]
+        }
+    }
+
+    private _unregisterAllRemoteHandlers(): void {
         Object.keys(this._remoteHandlerDeletionCallbacks)
             .forEach(slotName => {
-                const unregisterRemoteHandler = this._remoteHandlerDeletionCallbacks[slotName]
-                const remoteHandler = this._remoteHandlers[slotName]
-                if (remoteHandler && unregisterRemoteHandler) {
-                    unregisterRemoteHandler(remoteHandler)
-                    delete this._remoteHandlers[slotName]
-                }
+                this._unregisterRemoteHandler(slotName)
             })
     }
 
@@ -264,14 +271,45 @@ export class Transport {
             this._localHandlers[slotName] = []
         }
         this._localHandlers[slotName].push(handler)
-        const registrationMessage: TransportRegistrationMessage = {
-            type: 'handler_registered',
-            slotName
-        }
-        this._localHandlerRegistrations.push(registrationMessage)
-        if (this._channelReady) {
-            this._channel.send(registrationMessage)
+        /**
+         * We notify the far end when adding the first handler only, as they
+         * only need to know if at least one handler is connected.
+         */
+        if (this._localHandlers[slotName].length === 1) {
+            const registrationMessage: TransportRegistrationMessage = {
+                type: 'handler_registered',
+                slotName
+            }
+            this._localHandlerRegistrations.push(registrationMessage)
+            if (this._channelReady) {
+                this._channel.send(registrationMessage)
+            }
         }
     }
 
+    /**
+     * Called when a local handler is unregistered, to send a `handler_unregistered`
+     * message to the far end.
+     */
+    public unregisterHandler(slotName: string, handler: Handler<any, any>): void {
+        if (this._localHandlers[slotName]) {
+            const ix = this._localHandlers[slotName].indexOf(handler)
+            if (ix > -1) {
+                this._localHandlers[slotName].splice(ix, 1)
+                /**
+                 * We notify the far end when removing the last handler only, as they
+                 * only need to know if at least one handler is connected.
+                 */
+                if (this._localHandlers[slotName].length === 0) {
+                    const unregistrationMessage: TransportUnregistrationMessage = {
+                        type: 'handler_unregistered',
+                        slotName
+                    }
+                    if (this._channelReady) {
+                        this._channel.send(unregistrationMessage)
+                    }
+                }
+            }
+        }
+    }
 }
