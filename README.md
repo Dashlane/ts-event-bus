@@ -38,11 +38,11 @@ For instance, one could connect two node processes over WebSocket:
 // firstModule.EventBus.ts
 import { createEventBus } from 'ts-event-bus'
 import MyEvents from './MyEvents.ts'
-import MyBasicWebSocketChannel from './MyBasicWebSocketChannel.ts'
+import MyBasicWebSocketClientChannel from './MyBasicWebSocketClientChannel.ts'
 
 const EventBus = createEventBus({
     events: MyEvents,
-    channels: [ new MyBasicWebSocketChannel('ws://your_host') ]
+    channels: [ new MyBasicWebSocketClientChannel('ws://your_host') ]
 })
 
 export default EventBus
@@ -52,11 +52,11 @@ export default EventBus
 // secondModule.EventBus.ts
 import { createEventBus } from 'ts-event-bus'
 import MyEvents from './MyEvents.ts'
-import MyBasicWebSocketChannel from './MyBasicWebSocketChannel.ts'
+import MyBasicWebSocketServerChannel from './MyBasicWebSocketServerChannel.ts'
 
 const EventBus = createEventBus({
     events: MyEvents,
-    channels: [ new MyBasicWebSocketChannel('ws://your_host') ]
+    channels: [ new MyBasicWebSocketServerChannel('ws://your_host') ]
 })
 ```
 
