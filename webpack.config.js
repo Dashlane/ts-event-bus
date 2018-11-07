@@ -1,6 +1,7 @@
 const path = require('path')
 
 module.exports = {
+    mode: "production",
     entry: {
         'index': ['./src/index.ts']
     },
@@ -22,6 +23,6 @@ module.exports = {
     target: 'web',
     resolve: {
     extensions: ['.json', '.js', '.ts'],
-    modules: ['node_modules', 'src']
+    modules: ['node_modules', 'src'],
     },
 }
