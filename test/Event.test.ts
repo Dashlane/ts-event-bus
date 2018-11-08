@@ -2,7 +2,6 @@ import 'should'
 
 import {slot} from './../src/Slot'
 import {combineEvents, createEventBus} from './../src/Events'
-import {GenericChannel} from './../src/Channel'
 import {TransportMessage} from './../src/Message'
 import {TestChannel} from './TestChannel'
 import * as sinon from 'sinon'
