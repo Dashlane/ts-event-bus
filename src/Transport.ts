@@ -17,8 +17,6 @@ const assertNever = (a: never) => {
     throw new Error(`Should not happen: ${a}`)
 }
 
-const DEFAULT_TIMEOUT = 5000
-
 const ERRORS = {
     TIMED_OUT: 'TIMED_OUT',
     REMOTE_CONNECTION_CLOSED: 'REMOTE_CONNECTION_CLOSED',
@@ -209,7 +207,7 @@ export class Transport {
                     this._pendingRequests[slotName][id].reject(new Error(`${ERRORS.TIMED_OUT} on ${slotName}`))
                     delete this._pendingRequests[slotName][id]
                 }
-            }, this._channel.timeout || DEFAULT_TIMEOUT)
+            }, this._channel.timeout)
         })
         this._remoteHandlers[slotName] = remoteHandler
         addHandler(remoteHandler)

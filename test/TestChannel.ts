@@ -1,11 +1,13 @@
-import {TransportMessage, GenericChannel} from './../src/'
 import * as sinon from 'sinon'
+import { ChunkedChannel } from './../src/Channels/ChunkedChannel'
+import { GenericChannel } from './../src/Channels/GenericChannel'
+import { TransportMessage } from './../src/Message'
 
 export class TestChannel extends GenericChannel {
 
     public sendSpy = sinon.spy()
 
-    constructor(public timeout?: number) {
+    constructor() {
         super()
     }
 
@@ -45,4 +47,24 @@ export class TestChannel extends GenericChannel {
         this._messageReceived(message)
     }
 
+}
+
+export class TestChunkedChannel extends ChunkedChannel {
+    public sendSpy = sinon.spy()
+    public dataSpy = sinon.spy()
+
+    constructor(chunkSize: number, stringAlloc = -1) {
+        super({
+            chunkSize,
+            sender: null as any,
+            maxStringAlloc: stringAlloc
+        })
+        this._sender = m => {
+            this.sendSpy(m)
+            this._messageReceived(m)
+        }
+
+        this.onData(this.dataSpy)
+        this._connected()
+    }
 }
