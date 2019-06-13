@@ -121,6 +121,36 @@ EventBus.multiply.on(({a, b}) => {
 })
 ```
 
+### Lazy callbacks
+
+Slots expose a `lazy` method that will allow you to call a "connect" callback when a first
+client connects to the slot, and a "disconnect" callback when the last client disconnect.
+
+Remote or local clients are considered equally. If a client was already connected to the slot
+at the time when `lazy` is called, the "connect" callback is called immediately.
+
+```typescript
+const connect = () => {
+  console.log('Someone somewhere has begun listening to the slot with `.on`.')
+}
+
+const disconnect = () => {
+  console.log('No one is listening to the slot anymore.')
+}
+
+const disconnectLazy = EventBus.ping.lazy(connect, disconnect)
+
+const unsubscribe = EventBus.ping().on(() => { })
+// console output: 'Someone somewhere has begun listening to the slot with `.on`.'
+
+unsubscribe()
+// console output: 'No one is listening to the slot anymore.'
+
+// Remove the callbacks.
+// "disconnect" is called one last time if there were subscribers left on the slot.
+disconnectLazy()
+```
+
 ### Syntactic sugar
 
 You can combine events from different sources.
