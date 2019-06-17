@@ -1,14 +1,44 @@
-export type TransportRequest = { type: 'request', slotName: string, id: string, data: any }
-export type TransportResponse = { type: 'response', slotName: string, id: string, data: any }
-export type TransportError = { type: 'error', slotName: string, id: string, message: string, stack?: string }
-export type TransportRegistrationMessage = { type: 'handler_registered', slotName: string }
-export type TransportUnregistrationMessage = { type: 'handler_unregistered', slotName: string }
+export type TransportRequest = {
+    type: 'request',
+    slotName: string,
+    id: string,
+    data: any,
+    param: string
+}
+
+export type TransportResponse = {
+    type: 'response',
+    slotName: string,
+    id: string,
+    data: any,
+    param: string
+}
+
+export type TransportError = {
+    id: string,
+    message: string,
+    param: string,
+    slotName: string,
+    stack?: string,
+    type: 'error'
+}
+
+export type TransportRegistrationMessage = {
+    type: 'handler_registered',
+    slotName: string,
+    param: string
+}
+export type TransportUnregistrationMessage = {
+    type: 'handler_unregistered',
+    slotName: string,
+    param: string
+}
 export type TransportMessage =
-    TransportRegistrationMessage
-    | TransportUnregistrationMessage
+    TransportError
+    | TransportRegistrationMessage
     | TransportRequest
     | TransportResponse
-    | TransportError
+    | TransportUnregistrationMessage
 
 export function isTransportMessage(m: { type: string }): m is TransportMessage {
     switch (m.type) {

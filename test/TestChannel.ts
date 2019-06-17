@@ -2,6 +2,7 @@ import * as sinon from 'sinon'
 import { ChunkedChannel } from './../src/Channels/ChunkedChannel'
 import { GenericChannel } from './../src/Channels/GenericChannel'
 import { TransportMessage } from './../src/Message'
+import { DEFAULT_PARAM } from './../src/Constants'
 
 export class TestChannel extends GenericChannel {
 
@@ -27,6 +28,7 @@ export class TestChannel extends GenericChannel {
         this._messageReceived({
             type: 'error',
             slotName: 'test',
+            param: DEFAULT_PARAM,
             id: '1',
             message: 'error'
         })

@@ -2,8 +2,9 @@ import 'should'
 
 import {slot} from './../src/Slot'
 import {combineEvents, createEventBus} from './../src/Events'
-import {TransportMessage} from './../src/Message'
+// import {TransportMessage} from './../src/Message'
 import {TestChannel} from './TestChannel'
+import { DEFAULT_PARAM } from './../src/Constants'
 import * as sinon from 'sinon'
 
 describe('combineEvents()', () => {
@@ -39,6 +40,8 @@ describe('createEventBus()', () => {
         numberToString: slot<number, string>()
     }
 
+    const param = DEFAULT_PARAM
+
     it('should correctly create an event bus with no channels', async () => {
 
         // Attempting to use the events without having
@@ -68,6 +71,7 @@ describe('createEventBus()', () => {
         eventBus.numberToString.on(num => num.toString())
         channel.sendSpy.calledWith({
             type: 'handler_registered',
+            param,
             slotName: 'numberToString'
         }).should.be.True()
 
@@ -76,6 +80,7 @@ describe('createEventBus()', () => {
         channel.fakeReceive({
             type: 'request',
             slotName: 'numberToString',
+            param,
             id: '0',
             data: 5
         })
@@ -84,9 +89,9 @@ describe('createEventBus()', () => {
         channel.sendSpy.calledWith({
             type: 'response',
             slotName: 'numberToString',
+            param,
             id: '0',
             data: '5'
         }).should.be.True()
     })
-
 })
