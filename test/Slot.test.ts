@@ -1,4 +1,5 @@
 import 'should'
+import { spy } from 'sinon'
 
 import { connectSlot } from './../src/Slot'
 import { TestChannel } from './TestChannel'
@@ -73,6 +74,24 @@ describe('connectSlot()', () => {
             results.should.eql([55])
         })
 
+        it('should call lazy connect and disconnect', () => {
+            const broadcastBool = connectSlot<boolean>('broadcastBool', [])
+
+            const connect = spy()
+            const disconnect = spy()
+
+            broadcastBool.lazy(connect, disconnect)
+
+            const unsubscribe = broadcastBool.on(() => {})
+
+            if (!connect.called) throw new Error('connect should have been called')
+            if (disconnect.called) throw new Error('disconnect should not have been called')
+
+            unsubscribe()
+
+            if (!disconnect.called) throw new Error('disconnect should have been called')
+        })
+
     })
 
     context('with local and remote handlers', () => {
@@ -112,6 +131,102 @@ describe('connectSlot()', () => {
             await triggerPromise
         })
 
-    })
+        describe('lazy', () => {
+            it('should call connect and disconnect', () => {
+                const { channel: channel1, transport: transport1 } = makeTestTransport()
+                const { channel: channel2, transport: transport2 } = makeTestTransport()
+                const broadcastBool = connectSlot<boolean>('broadcastBool', [transport1, transport2])
 
+                const connect = spy()
+                const disconnect = spy()
+
+                broadcastBool.lazy(connect, disconnect)
+
+                // Simulate two remote connextions to the slot
+                channel1.fakeReceive({ type: 'handler_registered', slotName: 'broadcastBool'})
+                channel2.fakeReceive({ type: 'handler_registered', slotName: 'broadcastBool'})
+
+                // Connect should have been called once
+                if (!connect.calledOnce) throw new Error('connect should have been called once')
+
+                // Disconnect should not have been called
+                if (disconnect.called) throw new Error('disconnect should not have been called')
+
+                // Disconnect first remote client
+                channel1.fakeReceive({ type: 'handler_unregistered', slotName: 'broadcastBool'})
+
+                // Disconnect should not have been called
+                if (disconnect.called) throw new Error('disconnect should not have been called')
+
+                // Disconnect second remote client
+                channel2.fakeReceive({ type: 'handler_unregistered', slotName: 'broadcastBool'})
+
+                // Disconnect should have been called once
+                if (!disconnect.calledOnce) throw new Error('disconnect should have been called once')
+            })
+
+            it('should support multiple lazy calls', () => {
+                const { channel: channel1, transport: transport1 } = makeTestTransport()
+
+                const connect1 = spy()
+                const disconnect1 = spy()
+
+                const connect2 = spy()
+                const disconnect2 = spy()
+
+                const broadcastBool = connectSlot<boolean>('broadcastBool', [transport1])
+
+                broadcastBool.lazy(connect1, disconnect1)
+                broadcastBool.lazy(connect2, disconnect2)
+
+                channel1.fakeReceive({ type: 'handler_registered', slotName: 'broadcastBool'})
+
+                // Connects should have been called once
+                if (!connect1.calledOnce) throw new Error('connect1 should have been called once')
+                if (!connect2.calledOnce) throw new Error('connect1 should have been called once')
+
+                channel1.fakeReceive({ type: 'handler_unregistered', slotName: 'broadcastBool'})
+
+                // Disonnects should have been called once
+                if (!disconnect1.calledOnce) throw new Error('connect1 should have been called once')
+                if (!disconnect2.calledOnce) throw new Error('connect1 should have been called once')
+            })
+
+            it('should call connect if transport was registered before lazy was called', () => {
+                const { channel: channel1, transport: transport1 } = makeTestTransport()
+                const broadcastBool = connectSlot<boolean>('broadcastBool', [transport1])
+
+                const connect = spy()
+
+                // Register remote handler *before* calling lazy
+                channel1.fakeReceive({ type: 'handler_registered', slotName: 'broadcastBool'})
+
+                broadcastBool.lazy(connect, () => {})
+
+                // Connect should have been called once
+                if (!connect.calledOnce) throw new Error('connect should have been called once')
+            })
+
+            it('should call disconnect on unsubscribe when remote client is connected', () => {
+                const { channel: channel1, transport: transport1 } = makeTestTransport()
+                const broadcastBool = connectSlot<boolean>('broadcastBool', [transport1])
+
+                const disconnect = spy()
+
+                // Register remote handler
+                channel1.fakeReceive({ type: 'handler_registered', slotName: 'broadcastBool'})
+
+                // Connect lazy
+                const unsubscribe = broadcastBool.lazy(() => {}, disconnect)
+
+                // Disonnect should not have been called
+                if (disconnect.called) throw new Error('disconnect should not have been called')
+
+                unsubscribe()
+
+                // Disconnect should have been called once
+                if (!disconnect.calledOnce) throw new Error('disconnect should have been called once')
+            })
+        })
+    })
 })

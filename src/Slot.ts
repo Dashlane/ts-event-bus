@@ -6,6 +6,7 @@ const signalNotConnected = () => { throw new Error('Slot not connected') }
 const FAKE_SLOT: any = () => signalNotConnected()
 FAKE_SLOT.on = signalNotConnected
 
+export type SimpleCallback = () => void
 export type Unsubscribe = () => void
 
 /**
@@ -23,6 +24,7 @@ export interface Slot<RequestData=null, ResponseData=void> {
     // optional only when explicitly typed as such by the client.
     (requestData: RequestData): Promise<ResponseData>
     on: (handler: Handler<RequestData, ResponseData>) => Unsubscribe
+    lazy: (connect: () => void, disconnect: () => void) => Unsubscribe
 }
 
 /**
@@ -44,6 +46,13 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
     // This prevents `triggers` from firing *before* any far-end is listening.
     let remoteHandlersConnected = [] as Promise<any>[]
 
+    // Lazy
+    const lazyConnectCallbacks: SimpleCallback[] = []
+    const lazyDisonnectCallbacks: SimpleCallback[] = []
+
+    const callLazyConnectCallbacks = () => lazyConnectCallbacks.forEach(c => c())
+    const callLazyDisonnectCallbacks = () => lazyDisonnectCallbacks.forEach(c => c())
+
     // Signal to all transports that we will accept handlers for this slotName
     transports.forEach(t => {
 
@@ -62,6 +71,7 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
 
         t.onRemoteHandlerRegistered(slotName, (handler: Handler<any, any>) => {
             handlers.push(handler)
+            if (handlers.length === 1) callLazyConnectCallbacks()
 
             // We signal that the transport is ready for this slot by resolving the
             // promise stored in `remoteHandlersConnected`.
@@ -71,6 +81,7 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
         t.onRemoteHandlerUnregistered(slotName, handler => {
             const handlerIndex = handlers.indexOf(handler)
             handlers.splice(handlerIndex, 1)
+            if (handlers.length === 0) callLazyDisonnectCallbacks()
 
             // When the channel disconnects we also need to remove the
             // promise blocking the trigger.
@@ -91,6 +102,30 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
         Promise.all(remoteHandlersConnected).then(() => callHandlers(data, handlers)) :
         callHandlers(data, handlers)
 
+    trigger.lazy = (
+        firstClientConnectCallback: SimpleCallback,
+        lastClientDisconnectCallback: SimpleCallback
+    ): Unsubscribe => {
+
+        lazyConnectCallbacks.push(firstClientConnectCallback)
+        lazyDisonnectCallbacks.push(lastClientDisconnectCallback)
+
+        // Call connect callback
+        if (handlers.length > 0) firstClientConnectCallback()
+
+        return () => {
+            // Call disconnect callback
+            if (handlers.length > 0) lastClientDisconnectCallback()
+
+            // Stop lazy connect and disconnect process
+            const connectIx = lazyConnectCallbacks.indexOf(firstClientConnectCallback)
+            if (connectIx > -1) lazyConnectCallbacks.splice(connectIx, 1)
+
+            const disconnectIx = lazyDisonnectCallbacks.indexOf(lastClientDisconnectCallback)
+            if (disconnectIx > -1) lazyDisonnectCallbacks.splice(disconnectIx, 1)
+        }
+    }
+
     // Called when a client subscribes to the slot (with `Slot.on()`)
     trigger.on = (handler: Handler<any, any>): Unsubscribe => {
 
@@ -99,6 +134,9 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
 
         // Store this handler
         handlers.push(handler)
+
+        // Call lazy connect callbacks if needed
+        if (handlers.length === 1) callLazyConnectCallbacks()
 
         // Return the unsubscription function
         return () => {
@@ -110,6 +148,9 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
             if (ix !== -1) {
                 handlers.splice(ix, 1)
             }
+
+            // Call lazy disconnect callbacks if needed
+            if (!handlers.length) callLazyDisonnectCallbacks()
         }
 
     }
