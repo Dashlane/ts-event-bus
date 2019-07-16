@@ -10,17 +10,20 @@ import * as sinon from 'sinon'
 describe('combineEvents()', () => {
 
     it('should correctly combine several EventDeclarations', () => {
+        const helloEvents = {
+            hello: slot<{ name: string }>()
+        }
+        const howAreEvents = {
+            how: slot<{ mode: 'simple' | 'advanced'}>(),
+            are: slot<{ tense: number }>()
+        }
+        const youEvents = {
+            you: slot<{ reflective: boolean }>()
+        }
         const combined = combineEvents(
-            {
-                hello: slot<{ name: string }>()
-            },
-            {
-                how: slot<{ mode: 'simple' | 'advanced'}>(),
-                are: slot<{ tense: number }>()
-            },
-            {
-                you: slot<{ reflective: boolean }>()
-            }
+            helloEvents,
+            howAreEvents,
+            youEvents
         )
         Object.keys(combined).should.eql(['hello', 'how', 'are', 'you'])
 
@@ -30,6 +33,14 @@ describe('combineEvents()', () => {
         // combined.how({ mode: 'smiple' })
         // combined.are({ tense: true })
         // combined.you({ reflective: 5 })
+    })
+
+    it('should throw with duplicate slot declarations', () => {
+        const helloEvents = {
+            hello: slot<{ name: string }>()
+        }
+        const failing = () => combineEvents(helloEvents, helloEvents)
+        failing.should.throw(/duplicate slots/)
     })
 
 })
