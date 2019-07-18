@@ -202,8 +202,9 @@ export function connectSlot<T=void, T2=void>(
 
     // Combined signatures
     function trigger(firstArg: string | any, secondArg?: any) {
-        const data: any = secondArg || firstArg
-        const param: string = secondArg ? firstArg : DEFAULT_PARAM
+        const paramUsed = arguments.length === 2
+        const data: any = paramUsed ? secondArg : firstArg
+        const param: string = paramUsed ? firstArg : DEFAULT_PARAM
 
         if (config.noBuffer || transports.length === 0) {
             const allParamHandlers = getParamHandlers(param, handlers)
