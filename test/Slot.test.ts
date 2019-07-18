@@ -5,6 +5,7 @@ import { connectSlot } from './../src/Slot'
 import { TestChannel } from './TestChannel'
 import { Transport } from './../src/Transport'
 import { DEFAULT_PARAM } from './../src/Constants'
+import { TransportRegistrationMessage } from './../src/Message'
 
 const makeTestTransport = () => {
     const channel = new TestChannel()
@@ -121,9 +122,8 @@ describe('connectSlot', () => {
 
     context('with local and remote handlers', () => {
 
-        // TODO: feature to be dicussed
-        it.skip('should call both local handlers and remote handlers', async () => {
-            const {channel, transport} = makeTestTransport()
+        it('should call both local handlers and remote handlers', async () => {
+            const { channel, transport } = makeTestTransport()
             const broadcastBool = connectSlot<boolean>('broadcastBool', [transport])
             let localCalled = false
             broadcastBool.on(_b => { localCalled = true })
@@ -132,7 +132,12 @@ describe('connectSlot', () => {
             // Handlers should not be called until a remote handler is registered
             await Promise.resolve()
             localCalled.should.be.False()
-            channel.fakeReceive({ type: 'handler_registered', slotName: 'broadcastBool', param: DEFAULT_PARAM})
+
+            channel.fakeReceive({
+                param: DEFAULT_PARAM,
+                slotName: 'broadcastBool',
+                type: 'handler_registered'
+            })
 
             // setTimeout(0) to yield control to ts-event-bus internals,
             // so that the call to handlers can be processed
@@ -141,21 +146,54 @@ describe('connectSlot', () => {
             // Once a remote handler is registered, both local and remote should be called
             localCalled.should.be.True()
             const request = channel.sendSpy.lastCall.args[0]
+
             request.should.match({
-                type: 'request',
+                data: true,
+                param: DEFAULT_PARAM,
                 slotName: 'broadcastBool',
-                data: true
+                type: 'request'
             })
 
             // triggerPromise should resolve once a remote response is received
             channel.fakeReceive({
-                type: 'response',
-                id: request.id,
-                slotName: 'broadcastBool',
                 data: null,
-                param: DEFAULT_PARAM
+                id: request.id,
+                param: DEFAULT_PARAM,
+                slotName: 'broadcastBool',
+                type: 'response'
             })
             await triggerPromise
+        })
+
+        describe('noBuffer', () => {
+            it('should call local handlers even if no remote handler is registered', async () => {
+                const { channel, transport } = makeTestTransport()
+                const broadcastBool = connectSlot<boolean>(
+                    'broadcastBool',
+                    [transport],
+                    { noBuffer: true }
+                )
+                let localCalled = false
+                broadcastBool.on(_b => { localCalled = true })
+                broadcastBool(true)
+
+                // We should have called the trigger
+                localCalled.should.be.True()
+
+                const registrationMessage: TransportRegistrationMessage = {
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'handler_registered'
+                }
+
+                channel.fakeReceive(registrationMessage)
+                await new Promise(resolve => setTimeout(resolve, 0))
+
+                // Remote should not have been called, as it was not registered
+                // at the time of the trigger.
+                const request = channel.sendSpy.lastCall.args[0]
+                request.should.match(registrationMessage)
+            })
         })
 
         describe('lazy', () => {

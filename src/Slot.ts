@@ -35,6 +35,12 @@ const findAllUsedParams = (handlers: Handlers): string[] =>
         return paramsUniq
     }, [] as string[])
 
+interface SlotConfig {
+    // This option will prevent the slot from buffering the
+    // requests if no remote handlers are set for some transports.
+    noBuffer?: boolean
+}
+
 /**
  * Represents an event shared by two modules.
  *
@@ -61,6 +67,9 @@ export interface Slot<RequestData=null, ResponseData=void> {
 
     // Provide the slot with lazy callbacks
     lazy(connect: LazyCallback, disconnect: LazyCallback): Unsubscribe,
+
+    // Retreive slot configuration
+    config?: SlotConfig
 }
 
 /**
@@ -68,13 +77,16 @@ export interface Slot<RequestData=null, ResponseData=void> {
  * It returns a fake slot, that will throw if triggered or subscribed to.
  * Slots need to be connected in order to be functional.
  */
-export function slot<RequestData=void, ResponseData=void>(): Slot<RequestData, ResponseData> {
-    return FAKE_SLOT
+export function slot<RequestData=void, ResponseData=void>(
+    config: SlotConfig = { noBuffer: false }
+): Slot<RequestData, ResponseData> {
+    return Object.assign(FAKE_SLOT, config)
 }
 
 export function connectSlot<T=void, T2=void>(
     slotName: string,
-    transports: Transport[]
+    transports: Transport[],
+    config: SlotConfig = {}
 ): Slot<T, T2> {
 
     /*
@@ -84,13 +96,46 @@ export function connectSlot<T=void, T2=void>(
      */
 
     // These will be all the handlers for this slot, for each transport, for each param
-    const handlers: Handlers = Object.assign(
-        // local handlers are stored under LOCAL_TRANSPORT key
-        { [LOCAL_TRANSPORT]: {} },
-
-        // transport handlers are stored by index
-        transports.map(_t => ({}))
+    const handlers: Handlers = transports.reduce(
+        (acc, _t, ix) => ({ ...acc, [ix]: {} }),
+        { [LOCAL_TRANSPORT]: {} }
     )
+
+    // For each transport we create a Promise that will be fulfilled only
+    // when the far-end has registered a handler.
+    // This prevents `triggers` from firing *before* any far-end is listening.
+    interface HandlerConnected {
+        registered: Promise<void>
+        onRegister: () => void
+    }
+
+    interface RemoteHandlersConnected {
+        [transportKey: string]: {
+            [param: string]: HandlerConnected
+        }
+    }
+
+    const remoteHandlersConnected: RemoteHandlersConnected =
+        transports.reduce((acc, _t, transportKey) =>
+            ({ ...acc, [transportKey]: {} }),
+            {}
+        )
+
+    const awaitHandlerRegistration = (
+        transportKey: string,
+        param: string
+    ) => {
+        let onHandlerRegistered = () => { }
+
+        const remoteHandlerRegistered = new Promise<void>(
+            resolve => onHandlerRegistered = resolve
+        )
+
+        remoteHandlersConnected[transportKey][param] = {
+            registered: remoteHandlerRegistered,
+            onRegister: onHandlerRegistered
+        }
+    }
 
     // Lazy callbacks
     const lazyConnectCallbacks: LazyCallback[] = []
@@ -106,22 +151,33 @@ export function connectSlot<T=void, T2=void>(
     transports.forEach((transport, transportKey) => {
 
         const remoteHandlerRegistered = (
-            param: string,
+            param = DEFAULT_PARAM,
             handler: Handler<any, any>
         ) => {
+            // Store handler
             const paramHandlers = handlers[transportKey][param] || []
             handlers[transportKey][param] = paramHandlers.concat(handler)
+
+            // Call lazy callbacks if needed
             if (getParamHandlers(param, handlers).length === 1) callLazyConnectCallbacks(param)
+
+            // Release potential buffered events
+            if (!remoteHandlersConnected[transportKey][param]) {
+                awaitHandlerRegistration(String(transportKey), param)
+            }
+
+            remoteHandlersConnected[transportKey][param].onRegister()
         }
 
         const remoteHandlerUnregistered = (
-            param: string,
+            param = DEFAULT_PARAM,
             handler: Handler<any, any>
         ) => {
             const paramHandlers = handlers[transportKey][param] || []
             const handlerIndex = paramHandlers.indexOf(handler)
             if (handlerIndex > -1) handlers[transportKey][param].splice(handlerIndex, 1)
             if (getParamHandlers(param, handlers).length === 0) callLazyDisonnectCallbacks(param)
+            awaitHandlerRegistration(String(transportKey), param)
         }
 
         transport.addRemoteHandlerRegistrationCallback(slotName, remoteHandlerRegistered)
@@ -145,11 +201,34 @@ export function connectSlot<T=void, T2=void>(
     function trigger(param: string, data: any): Promise<any>
 
     // Combined signatures
-    function trigger(firstArg: string | any, secondArg?: any): Promise<any> {
+    function trigger(firstArg: string | any, secondArg?: any) {
         const data: any = secondArg || firstArg
         const param: string = secondArg ? firstArg : DEFAULT_PARAM
-        const allHandlers = getParamHandlers(param, handlers)
-        return callHandlers(data, allHandlers)
+
+        if (config.noBuffer || transports.length === 0) {
+            const allParamHandlers = getParamHandlers(param, handlers)
+            return callHandlers(data, allParamHandlers)
+        }
+
+        else {
+            transports.forEach((_t, transportKey) => {
+                if (!remoteHandlersConnected[transportKey][param]) {
+                    awaitHandlerRegistration(String(transportKey), param)
+                }
+            })
+
+            const transportPromises: Promise<void>[] = transports.reduce(
+                (acc, _t, transportKey) => [
+                    ...acc,
+                    remoteHandlersConnected[transportKey][param].registered
+                ], []
+            )
+
+            return Promise.all(transportPromises).then(() => {
+                const allParamHandlers = getParamHandlers(param, handlers)
+                return callHandlers(data, allParamHandlers)
+            })
+        }
     }
 
     /*
@@ -244,5 +323,5 @@ export function connectSlot<T=void, T2=void>(
         }
     }
 
-    return Object.assign(trigger, { on, lazy })
+    return Object.assign(trigger, { on, lazy, config })
 }

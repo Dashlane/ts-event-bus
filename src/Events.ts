@@ -42,7 +42,8 @@ export function createEventBus<C extends EventDeclaration>(args: { events: C, ch
     const transports = (args.channels || []).map(c => new Transport(c))
     return Object.keys(args.events)
         .reduce((conn: C, slotName) => {
-            conn[slotName] = connectSlot(slotName, transports as Transport[])
+            const config = args.events[slotName].config
+            conn[slotName] = connectSlot(slotName, transports as Transport[], config)
             return conn
         }, {} as any)
 }
