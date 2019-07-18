@@ -4,8 +4,8 @@ import { DEFAULT_PARAM } from './Constants'
 
 const signalNotConnected = () => { throw new Error('Slot not connected') }
 
-const FAKE_SLOT: any = () => signalNotConnected()
-FAKE_SLOT.on = signalNotConnected
+const notConnectedSlot: any = () => signalNotConnected()
+notConnectedSlot.on = signalNotConnected
 
 export type LazyCallback = (param: string) => void
 export type Unsubscribe = () => void
@@ -80,7 +80,7 @@ export interface Slot<RequestData=null, ResponseData=void> {
 export function slot<RequestData=void, ResponseData=void>(
     config: SlotConfig = { noBuffer: false }
 ): Slot<RequestData, ResponseData> {
-    return Object.assign(FAKE_SLOT, config)
+    return Object.assign(notConnectedSlot, config)
 }
 
 export function connectSlot<T=void, T2=void>(
