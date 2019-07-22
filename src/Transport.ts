@@ -356,14 +356,19 @@ export class Transport {
             const ix = slotLocalHandlers[param].indexOf(handler)
             if (ix > -1) {
                 slotLocalHandlers[param].splice(ix, 1)
-                // TODO: shouldn't we send the message only when the last handler is removed?
-                const unregistrationMessage: TransportUnregistrationMessage = {
-                    type: 'handler_unregistered',
-                    param,
-                    slotName
-                }
-                if (this._channelReady) {
-                    this._channel.send(unregistrationMessage)
+                /**
+                 * We notify the far end when removing the last handler only, as they
+                 * only need to know if at least one handler is connected.
+                 */
+                if (slotLocalHandlers[param].length === 0) {
+                    const unregistrationMessage: TransportUnregistrationMessage = {
+                        type: 'handler_unregistered',
+                        param,
+                        slotName
+                    }
+                    if (this._channelReady) {
+                        this._channel.send(unregistrationMessage)
+                    }
                 }
             }
         }

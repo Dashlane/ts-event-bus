@@ -62,6 +62,17 @@ describe('Transport', () => {
                 .should.be.True()
         })
 
+        it('should not send a handler_unregistered message when an additional local handler is unregistered', () => {
+            const slotName = 'getCarrotStock'
+            transport.registerHandler(slotName, param, slots[slotName][0])
+            transport.registerHandler(slotName, param, slots[slotName][1])
+            transport.unregisterHandler(slotName, param, slots[slotName][1])
+            channel.sendSpy
+                .withArgs({ type: 'handler_unregistered', slotName, param })
+                .called
+                .should.be.False()
+        })
+
 
         it('should call the appropriate handler when a request is received', async () => {
 
