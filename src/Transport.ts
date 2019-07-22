@@ -182,7 +182,7 @@ export class Transport {
         if (!slotRequests || !slotRequests[param] || !slotRequests[param][id]) return
 
         const error = new Error(`${message} on ${slotName} with param ${param}`)
-        error.stack = stack || error.stack // TODO: stack is not mutable on edge, check?
+        error.stack = stack || error.stack
         this._pendingRequests[slotName][param][id].reject(error)
         delete this._pendingRequests[slotName][param][id]
     }
