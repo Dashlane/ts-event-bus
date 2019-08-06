@@ -237,6 +237,17 @@ describe('Transport', () => {
                 })
                 removeLocalHandler.called.should.be.True()
             })
+
+            it('should unregister all remote handlers when channel gets disconnected', () => {
+                // Add remote handler unregistration callback
+                transport.addRemoteHandlerUnregistrationCallback(slotName, removeLocalHandler)
+
+                // Disconnect channel
+                channel.callDisconnected()
+
+                // Callback should have been called
+                removeLocalHandler.called.should.be.True()
+            })
         })
     })
 })

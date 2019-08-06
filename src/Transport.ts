@@ -90,8 +90,6 @@ export class Transport {
                     return this._responseReceived(message)
                 case 'handler_registered':
                     return this._registerRemoteHandler(message)
-                case 'handler_registered':
-                    return this._registerRemoteHandler(message)
                 case 'handler_unregistered':
                     return this._unregisterRemoteHandler(message)
                 case 'error':
@@ -267,10 +265,7 @@ export class Transport {
                 const slotHandlers = this._remoteHandlers[slotName]
                 if (!slotHandlers) return
 
-                const params = Object.keys(slotHandlers).filter(param =>
-                    (slotHandlers[param] || []).length > 0
-                )
-
+                const params = Object.keys(slotHandlers).filter(param => slotHandlers[param])
                 params.forEach(param => this._unregisterRemoteHandler({ slotName, param }))
             })
     }
