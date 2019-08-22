@@ -4,8 +4,13 @@ import { DEFAULT_PARAM } from './Constants'
 
 const signalNotConnected = () => { throw new Error('Slot not connected') }
 
-const notConnectedSlot: any = () => signalNotConnected()
-notConnectedSlot.on = signalNotConnected
+const notConnectedSlot: Slot<any, any> = Object.assign(
+    () => signalNotConnected(),
+    {
+        on: signalNotConnected,
+        lazy: signalNotConnected
+    }
+)
 
 export type LazyCallback = (param: string) => void
 export type Unsubscribe = () => void
