@@ -210,13 +210,10 @@ export class Transport {
 
             // Keep a reference to the pending promise's
             // resolution and rejection callbacks
-            if (!this._pendingRequests[slotName]) {
-                this._pendingRequests[slotName] = {}
-            }
-            if (!this._pendingRequests[slotName][param]) {
-                this._pendingRequests[slotName][param] = {}
-            }
             const id = getId()
+
+            this._pendingRequests[slotName] = this._pendingRequests[slotName] || {}
+            this._pendingRequests[slotName][param] = this._pendingRequests[slotName][param] || {}
             this._pendingRequests[slotName][param][id] = { resolve, reject }
 
             // Send a request to the far end
@@ -230,7 +227,9 @@ export class Transport {
 
             // Handle request timeout if needed
             setTimeout(() => {
-                const request = this._pendingRequests[slotName][param][id]
+                const slotHandlers = this._pendingRequests[slotName] || {}
+                const paramHandlers = slotHandlers[param] || {}
+                const request = paramHandlers[id]
                 if (request) {
                     const error = new Error(`${ERRORS.TIMED_OUT} on ${slotName} with param ${param}`)
                     request.reject(error)
@@ -308,12 +307,9 @@ export class Transport {
         param: string,
         handler: Handler<any, any>
     ): void {
-        if (!this._localHandlers[slotName]) {
-            this._localHandlers[slotName] = {}
-        }
-        if (!this._localHandlers[slotName][param]) {
-            this._localHandlers[slotName][param] = []
-        }
+
+        this._localHandlers[slotName] = this._localHandlers[slotName] || {}
+        this._localHandlers[slotName][param] = this._localHandlers[slotName][param] || []
         this._localHandlers[slotName][param].push(handler)
 
         /**
