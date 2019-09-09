@@ -1,13 +1,50 @@
 import { Transport } from './Transport'
 import { Handler, callHandlers } from './Handler'
+import { DEFAULT_PARAM } from './Constants'
 
 const signalNotConnected = () => { throw new Error('Slot not connected') }
 
-const FAKE_SLOT: any = () => signalNotConnected()
-FAKE_SLOT.on = signalNotConnected
+const notConnectedSlot: Slot<any, any> = Object.assign(
+    () => signalNotConnected(),
+    {
+        on: signalNotConnected,
+        lazy: signalNotConnected
+    }
+)
 
-export type SimpleCallback = () => void
+export type LazyCallback = (param: string) => void
 export type Unsubscribe = () => void
+
+// Key to store local handlers in the `handlers` map
+const LOCAL_TRANSPORT = 'LOCAL_TRANSPORT'
+
+// Type to store handlers, by transport, by param
+type TransportHandlers = { [param: string]: Handler<any, any>[] }
+type Handlers = { [handlerKey: string]: TransportHandlers }
+
+// Find handlers for given param accross transports
+const getParamHandlers = (param: string, handlers: Handlers): Handler<any, any>[] =>
+    Object.keys(handlers).reduce((paramHandlers, transportKey) => {
+        return paramHandlers.concat(handlers[transportKey][param] || [])
+    }, [] as Handler<any, any>[])
+
+// Find all params with registered callbacks
+const findAllUsedParams = (handlers: Handlers): string[] =>
+    Object.keys(handlers).reduce((params, transportKey) => {
+        const transportHandlers = handlers[transportKey]
+        const registeredParams = Object.keys(transportHandlers).filter(
+            param => (transportHandlers[param] || []).length > 0
+        )
+        const paramsMaybeDuplicate = [...params, ...registeredParams]
+        const paramsUniq = [...new Set(paramsMaybeDuplicate)]
+        return paramsUniq
+    }, [] as string[])
+
+interface SlotConfig {
+    // This option will prevent the slot from buffering the
+    // requests if no remote handlers are set for some transports.
+    noBuffer?: boolean
+}
 
 /**
  * Represents an event shared by two modules.
@@ -18,13 +55,26 @@ export type Unsubscribe = () => void
  * The slot can also be subscribed to, by using the `on` property.
  */
 export interface Slot<RequestData=null, ResponseData=void> {
-
-    // Make the Slot callable: this is how an event is triggered
     // TODO: Find a solution to make it possible to omit the requestData as
     // optional only when explicitly typed as such by the client.
-    (requestData: RequestData): Promise<ResponseData>
-    on: (handler: Handler<RequestData, ResponseData>) => Unsubscribe
-    lazy: (connect: () => void, disconnect: () => void) => Unsubscribe
+
+    // Trigger the slot with explicit param
+    (param: string, requestData: RequestData): Promise<ResponseData>,
+
+    // Trigger the slot with default param
+    (requestData: RequestData): Promise<ResponseData>,
+
+    // Listen to events sent through the slot on explicit param
+    on(param: string, handler: Handler<RequestData, ResponseData>): Unsubscribe,
+
+    // Listen to events sent through the slot on default param
+    on(handler: Handler<RequestData, ResponseData>): Unsubscribe
+
+    // Provide the slot with lazy callbacks
+    lazy(connect: LazyCallback, disconnect: LazyCallback): Unsubscribe,
+
+    // Retreive slot configuration
+    config?: SlotConfig
 }
 
 /**
@@ -32,92 +82,183 @@ export interface Slot<RequestData=null, ResponseData=void> {
  * It returns a fake slot, that will throw if triggered or subscribed to.
  * Slots need to be connected in order to be functional.
  */
-export function slot<RequestData=void, ResponseData=void>(): Slot<RequestData, ResponseData> {
-    return FAKE_SLOT
+export function slot<RequestData=void, ResponseData=void>(
+    config: SlotConfig = { noBuffer: false }
+): Slot<RequestData, ResponseData> {
+    return Object.assign(notConnectedSlot, config)
 }
 
-export function connectSlot<T=void, T2=void>(slotName: string, transports: Transport[]): Slot<T, T2> {
+export function connectSlot<T=void, T2=void>(
+    slotName: string,
+    transports: Transport[],
+    config: SlotConfig = {}
+): Slot<T, T2> {
 
-    // These will be all the handlers for this slot (eg. all the callbacks registered with `Slot.on()`)
-    const handlers = [] as Handler<any, any>[]
+    /*
+     * ========================
+     * Internals
+     * ========================
+     */
+
+    // These will be all the handlers for this slot, for each transport, for each param
+    const handlers: Handlers = transports.reduce(
+        (acc, _t, ix) => ({ ...acc, [ix]: {} }),
+        { [LOCAL_TRANSPORT]: {} }
+    )
 
     // For each transport we create a Promise that will be fulfilled only
     // when the far-end has registered a handler.
     // This prevents `triggers` from firing *before* any far-end is listening.
-    let remoteHandlersConnected = [] as Promise<any>[]
+    interface HandlerConnected {
+        registered: Promise<void>
+        onRegister: () => void
+    }
 
-    // Lazy
-    const lazyConnectCallbacks: SimpleCallback[] = []
-    const lazyDisonnectCallbacks: SimpleCallback[] = []
+    interface RemoteHandlersConnected {
+        [transportKey: string]: {
+            [param: string]: HandlerConnected
+        }
+    }
 
-    const callLazyConnectCallbacks = () => lazyConnectCallbacks.forEach(c => c())
-    const callLazyDisonnectCallbacks = () => lazyDisonnectCallbacks.forEach(c => c())
+    const remoteHandlersConnected: RemoteHandlersConnected =
+        transports.reduce((acc, _t, transportKey) =>
+            ({ ...acc, [transportKey]: {} }),
+            {}
+        )
+
+    const awaitHandlerRegistration = (
+        transportKey: string,
+        param: string
+    ) => {
+        let onHandlerRegistered = () => { }
+
+        const remoteHandlerRegistered = new Promise<void>(
+            resolve => onHandlerRegistered = resolve
+        )
+
+        remoteHandlersConnected[transportKey][param] = {
+            registered: remoteHandlerRegistered,
+            onRegister: onHandlerRegistered
+        }
+    }
+
+    // Lazy callbacks
+    const lazyConnectCallbacks: LazyCallback[] = []
+    const lazyDisonnectCallbacks: LazyCallback[] = []
+
+    const callLazyConnectCallbacks = (param: string) =>
+        lazyConnectCallbacks.forEach(c => c(param))
+
+    const callLazyDisonnectCallbacks = (param: string) =>
+        lazyDisonnectCallbacks.forEach(c => c(param))
 
     // Signal to all transports that we will accept handlers for this slotName
-    transports.forEach(t => {
+    transports.forEach((transport, transportKey) => {
 
-        // Variable holds the promise's `resolve` function. A little hack
-        // allowing us to have the notion of "deferred" promise fulfillment.
-        let onHandlerRegistered: Function
-        let remoteHandlerPromise: Promise<void>
+        const remoteHandlerRegistered = (
+            param = DEFAULT_PARAM,
+            handler: Handler<any, any>
+        ) => {
+            // Store handler
+            const paramHandlers = handlers[transportKey][param] || []
+            handlers[transportKey][param] = paramHandlers.concat(handler)
 
-        const awaitHandlerRegistration = () => {
-            // We store a reference to this promise to be resolved once the far-end has responded.
-            remoteHandlerPromise = new Promise(resolve => onHandlerRegistered = resolve)
-            remoteHandlersConnected.push(remoteHandlerPromise)
+            // Call lazy callbacks if needed
+            if (getParamHandlers(param, handlers).length === 1) callLazyConnectCallbacks(param)
+
+            // Release potential buffered events
+            if (!remoteHandlersConnected[transportKey][param]) {
+                awaitHandlerRegistration(String(transportKey), param)
+            }
+
+            remoteHandlersConnected[transportKey][param].onRegister()
         }
 
-        awaitHandlerRegistration()
+        const remoteHandlerUnregistered = (
+            param = DEFAULT_PARAM,
+            handler: Handler<any, any>
+        ) => {
+            const paramHandlers = handlers[transportKey][param] || []
+            const handlerIndex = paramHandlers.indexOf(handler)
+            if (handlerIndex > -1) handlers[transportKey][param].splice(handlerIndex, 1)
+            if (getParamHandlers(param, handlers).length === 0) callLazyDisonnectCallbacks(param)
+            awaitHandlerRegistration(String(transportKey), param)
+        }
 
-        t.onRemoteHandlerRegistered(slotName, (handler: Handler<any, any>) => {
-            handlers.push(handler)
-            if (handlers.length === 1) callLazyConnectCallbacks()
-
-            // We signal that the transport is ready for this slot by resolving the
-            // promise stored in `remoteHandlersConnected`.
-            onHandlerRegistered()
-        })
-
-        t.onRemoteHandlerUnregistered(slotName, handler => {
-            const handlerIndex = handlers.indexOf(handler)
-            handlers.splice(handlerIndex, 1)
-            if (handlers.length === 0) callLazyDisonnectCallbacks()
-
-            // When the channel disconnects we also need to remove the
-            // promise blocking the trigger.
-            remoteHandlersConnected.splice(remoteHandlersConnected.indexOf(remoteHandlerPromise), 1)
-
-            // And also insert a new promise that will be re-fulfilled when
-            // remote handlers are re-registered.
-            awaitHandlerRegistration()
-        })
+        transport.addRemoteHandlerRegistrationCallback(slotName, remoteHandlerRegistered)
+        transport.addRemoteHandlerUnregistrationCallback(slotName, remoteHandlerUnregistered)
     })
 
+    /*
+     * ========================
+     * API
+     * ========================
+     */
 
-    // Called when a client triggers (calls) the slot
-    // Before calling the handler, we also check that all the declared transports
-    // are ready to answer to the request.
-    // If no transports were declared, call directly the handlers.
-    const trigger: any = (data: any) => (transports.length) ?
-        Promise.all(remoteHandlersConnected).then(() => callHandlers(data, handlers)) :
-        callHandlers(data, handlers)
+    /*
+     * Sends data through the slot.
+     */
 
-    trigger.lazy = (
-        firstClientConnectCallback: SimpleCallback,
-        lastClientDisconnectCallback: SimpleCallback
-    ): Unsubscribe => {
+    // Signature for Slot(<data>) using default param
+    function trigger(data: any): Promise<any>
+
+    // Signature for Slot(<param>, <data>)
+    function trigger(param: string, data: any): Promise<any>
+
+    // Combined signatures
+    function trigger(firstArg: string | any, secondArg?: any) {
+        const paramUsed = arguments.length === 2
+        const data: any = paramUsed ? secondArg : firstArg
+        const param: string = paramUsed ? firstArg : DEFAULT_PARAM
+
+        if (config.noBuffer || transports.length === 0) {
+            const allParamHandlers = getParamHandlers(param, handlers)
+            return callHandlers(data, allParamHandlers)
+        }
+
+        else {
+            transports.forEach((_t, transportKey) => {
+                if (!remoteHandlersConnected[transportKey][param]) {
+                    awaitHandlerRegistration(String(transportKey), param)
+                }
+            })
+
+            const transportPromises: Promise<void>[] = transports.reduce(
+                (acc, _t, transportKey) => [
+                    ...acc,
+                    remoteHandlersConnected[transportKey][param].registered
+                ], []
+            )
+
+            return Promise.all(transportPromises).then(() => {
+                const allParamHandlers = getParamHandlers(param, handlers)
+                return callHandlers(data, allParamHandlers)
+            })
+        }
+    }
+
+    /*
+     * Allows a client to be notified when a first
+     * client connects to the slot with `.on`, and when the
+     * last client disconnects from it.
+     */
+
+    function lazy(
+        firstClientConnectCallback: LazyCallback,
+        lastClientDisconnectCallback: LazyCallback
+    ): Unsubscribe {
 
         lazyConnectCallbacks.push(firstClientConnectCallback)
         lazyDisonnectCallbacks.push(lastClientDisconnectCallback)
 
-        // Call connect callback
-        if (handlers.length > 0) firstClientConnectCallback()
+        // Call connect callback immediately if handlers were already registered
+        findAllUsedParams(handlers).forEach(firstClientConnectCallback)
 
         return () => {
             // Call disconnect callback
-            if (handlers.length > 0) lastClientDisconnectCallback()
+            findAllUsedParams(handlers).forEach(lastClientDisconnectCallback)
 
-            // Stop lazy connect and disconnect process
+            // Stop lazy connect and disconnect processes
             const connectIx = lazyConnectCallbacks.indexOf(firstClientConnectCallback)
             if (connectIx > -1) lazyConnectCallbacks.splice(connectIx, 1)
 
@@ -126,34 +267,67 @@ export function connectSlot<T=void, T2=void>(slotName: string, transports: Trans
         }
     }
 
-    // Called when a client subscribes to the slot (with `Slot.on()`)
-    trigger.on = (handler: Handler<any, any>): Unsubscribe => {
+    /*
+     * Allows a client to be notified when someone
+     * sends data through the slot.
+     */
+
+    // Signature for Slot.on(<handler>) using default param
+    function on(
+        handler: Handler<any, any>
+    ): Unsubscribe
+
+    // Signature for Slot.on(<param>, <handler>)
+    function on(
+        param: string,
+        handler: Handler<any, any>
+    ): Unsubscribe
+
+    // Combined signatures
+    function on(
+        paramOrHandler: string | Handler<any, any>,
+        handlerIfParam?: Handler<any, any>
+    ): Unsubscribe {
+
+        // Get param and handler from arguments, depending if param was passed or not
+        let param = ""
+        let handler: Handler<any, any> = () => new Promise(r => r())
+
+        if (typeof paramOrHandler === 'string') {
+            param = paramOrHandler
+            handler = handlerIfParam || handler
+        }
+        else {
+            param = DEFAULT_PARAM
+            handler = paramOrHandler
+        }
 
         // Register a remote handler with all of our remote transports
-        transports.forEach(t => t.registerHandler(slotName, handler))
+        transports.forEach(t => t.registerHandler(slotName, param, handler))
 
         // Store this handler
-        handlers.push(handler)
+        handlers[LOCAL_TRANSPORT][param] =
+            (handlers[LOCAL_TRANSPORT][param] || []).concat(handler)
 
-        // Call lazy connect callbacks if needed
-        if (handlers.length === 1) callLazyConnectCallbacks()
+        // Call lazy connect callbacks if there is at least one handler
+        const paramHandlers = getParamHandlers(param, handlers)
+        if (paramHandlers.length === 1) callLazyConnectCallbacks(param)
 
         // Return the unsubscription function
         return () => {
 
             // Unregister remote handler with all of our remote transports
-            transports.forEach(t => t.unregisterHandler(slotName, handler))
+            transports.forEach(t => t.unregisterHandler(slotName, param, handler))
 
-            const ix = handlers.indexOf(handler)
-            if (ix !== -1) {
-                handlers.splice(ix, 1)
-            }
+            const localParamHandlers = handlers[LOCAL_TRANSPORT][param] || []
+            const ix = localParamHandlers.indexOf(handler)
+            if (ix !== -1) handlers[LOCAL_TRANSPORT][param].splice(ix, 1)
 
-            // Call lazy disconnect callbacks if needed
-            if (!handlers.length) callLazyDisonnectCallbacks()
+            // Call lazy disconnect callbacks if there are no handlers anymore
+            const paramHandlers = getParamHandlers(param, handlers)
+            if (paramHandlers.length === 0) callLazyDisonnectCallbacks(param)
         }
-
     }
 
-    return trigger as Slot<T, T2>
+    return Object.assign(trigger, { on, lazy, config })
 }

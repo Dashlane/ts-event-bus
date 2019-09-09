@@ -68,8 +68,15 @@ Once connected, the clients can start by using the slots on the event bus
 // firstModule.ts
 import EventBus from './firstModule.EventBus.ts'
 
+// Slots can be called with a parameter, here 'michel'
+EventBus.say('michel', 'Hello')
+
+// Or one can rely on the default parameter: here DEFAULT_PARAMETER
+// is implicitely used.
+EventBus.say('Hello')
+
 // Triggering an event always returns a promise
-EventBus.sayHello('michel').then(() => {
+EventBus.say('michel', 'Hello').then(() => {
     ...
 })
 
@@ -88,12 +95,14 @@ EventBus.ping()
 // secondModule.ts
 import EventBus from './secondModule.EventBus.ts'
 
-EventBus.ping().on(() => {
+// Add a listener on the default parameter
+EventBus.ping.on(() => {
     console.log('pong')
 })
 
-EventBus.sayHello.on(name => {
-    console.log(`${name} said hello!`)
+// Or listen to a specific parameter
+EventBus.say.on('michel', (words) => {
+    console.log('michel said', words)
 })
 
 // Event subscribers can respond to the event synchronously (by returning a value)
@@ -130,25 +139,45 @@ Remote or local clients are considered equally. If a client was already connecte
 at the time when `lazy` is called, the "connect" callback is called immediately.
 
 ```typescript
-const connect = () => {
-  console.log('Someone somewhere has begun listening to the slot with `.on`.')
+const connect = (param) => {
+  console.log(`Someone somewhere has begun listening to the slot with .on on ${param}.`)
 }
 
-const disconnect = () => {
-  console.log('No one is listening to the slot anymore.')
+const disconnect = (param) => {
+  console.log(`No one is listening to the slot anymore on ${param}.`)
 }
 
 const disconnectLazy = EventBus.ping.lazy(connect, disconnect)
 
 const unsubscribe = EventBus.ping().on(() => { })
-// console output: 'Someone somewhere has begun listening to the slot with `.on`.'
+// console output: 'Someone somewhere has begun listening to the slot with .on on $_DEFAULT_$.'
 
 unsubscribe()
-// console output: 'No one is listening to the slot anymore.'
+// console output: 'No one is listening to the slot anymore on $_DEFAULT_$.'
+
+const unsubscribe = EventBus.ping().on('parameter', () => { })
+// console output: 'Someone somewhere has begun listening to the slot with .on on parameter.'
+
+unsubscribe()
+// console output: 'No one is listening to the slot anymore on parameter.'
 
 // Remove the callbacks.
 // "disconnect" is called one last time if there were subscribers left on the slot.
 disconnectLazy()
+```
+
+### Buffering
+
+When the eventBus is created with channels, slots will wait for all transports to have
+registered callbacks before triggering.
+
+This buffering mechanism can be disabled at the slot level with the `noBuffer` config option:
+
+```typescript
+const MyEvents = {
+    willWait: slot<string>(),
+    wontWait: slot<string>({ noBuffer: true }),
+}
 ```
 
 ### Syntactic sugar

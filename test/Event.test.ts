@@ -2,24 +2,28 @@ import 'should'
 
 import {slot} from './../src/Slot'
 import {combineEvents, createEventBus} from './../src/Events'
-import {TransportMessage} from './../src/Message'
+// import {TransportMessage} from './../src/Message'
 import {TestChannel} from './TestChannel'
+import { DEFAULT_PARAM } from './../src/Constants'
 import * as sinon from 'sinon'
 
 describe('combineEvents()', () => {
 
     it('should correctly combine several EventDeclarations', () => {
+        const helloEvents = {
+            hello: slot<{ name: string }>()
+        }
+        const howAreEvents = {
+            how: slot<{ mode: 'simple' | 'advanced'}>(),
+            are: slot<{ tense: number }>()
+        }
+        const youEvents = {
+            you: slot<{ reflective: boolean }>()
+        }
         const combined = combineEvents(
-            {
-                hello: slot<{ name: string }>()
-            },
-            {
-                how: slot<{ mode: 'simple' | 'advanced'}>(),
-                are: slot<{ tense: number }>()
-            },
-            {
-                you: slot<{ reflective: boolean }>()
-            }
+            helloEvents,
+            howAreEvents,
+            youEvents
         )
         Object.keys(combined).should.eql(['hello', 'how', 'are', 'you'])
 
@@ -31,6 +35,14 @@ describe('combineEvents()', () => {
         // combined.you({ reflective: 5 })
     })
 
+    it('should throw with duplicate slot declarations', () => {
+        const helloEvents = {
+            hello: slot<{ name: string }>()
+        }
+        const failing = () => combineEvents(helloEvents, helloEvents)
+        failing.should.throw(/duplicate slots/)
+    })
+
 })
 
 describe('createEventBus()', () => {
@@ -38,6 +50,8 @@ describe('createEventBus()', () => {
     const events = {
         numberToString: slot<number, string>()
     }
+
+    const param = DEFAULT_PARAM
 
     it('should correctly create an event bus with no channels', async () => {
 
@@ -68,6 +82,7 @@ describe('createEventBus()', () => {
         eventBus.numberToString.on(num => num.toString())
         channel.sendSpy.calledWith({
             type: 'handler_registered',
+            param,
             slotName: 'numberToString'
         }).should.be.True()
 
@@ -76,6 +91,7 @@ describe('createEventBus()', () => {
         channel.fakeReceive({
             type: 'request',
             slotName: 'numberToString',
+            param,
             id: '0',
             data: 5
         })
@@ -84,9 +100,9 @@ describe('createEventBus()', () => {
         channel.sendSpy.calledWith({
             type: 'response',
             slotName: 'numberToString',
+            param,
             id: '0',
             data: '5'
         }).should.be.True()
     })
-
 })

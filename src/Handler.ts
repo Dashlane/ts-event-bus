@@ -38,7 +38,7 @@ function callOneHandler(h: Handler<any>, data: any): Promise<any> {
  * of all these handlers is discarded.
  */
 export function callHandlers(data: any, handlers: Handler<any, any>[]): Promise<any> {
-    if (handlers.length === 0) {
+    if (!handlers || handlers.length === 0) {
         // No one is listening
         return new Promise(resolve => { /* NOOP, this promise will never resolve */ })
     } else if (handlers.length === 1) {

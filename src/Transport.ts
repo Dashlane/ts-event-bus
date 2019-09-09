@@ -1,12 +1,12 @@
 import { Handler, callHandlers } from './Handler'
 import { Channel } from './Channel'
 import {
+    TransportError,
+    TransportMessage,
     TransportRegistrationMessage,
     TransportUnregistrationMessage,
-    TransportError,
-    TransportRequest,
     TransportResponse,
-    TransportMessage
+    TransportRequest
 } from './Message'
 
 let _ID = 0
@@ -34,34 +34,51 @@ export type PendingRequests = {
     }
 }
 
+type RemoteHandlerCallback =
+    (param: string, handler: Handler) => void
+
 export class Transport {
 
-    private _localHandlers: { [slotName: string]: Handler[] } = {}
-    private _localHandlerRegistrations: TransportRegistrationMessage[] = []
+    private _localHandlers: {
+        [slotName: string]: {
+            [param: string]: Handler[]
+        }
+    } = {}
+
+    private _localHandlerRegistrations: {
+        [param: string]: TransportRegistrationMessage[]
+    } = {}
 
     /**
      * Handlers created by the Transport. When an event is triggered locally,
      * these handlers will make a request to the far end to handle this event,
      * and store a PendingRequest
      */
-    private _remoteHandlers: { [slotName: string]: Handler } = {}
+    private _remoteHandlers: {
+        [slotName: string]: {
+            [param: string]: Handler
+        }
+    } = {}
 
     /**
      * Callbacks provided by each slot allowing to register remote handlers
      * created by the Transport
      */
-    private _remoteHandlerRegistrationCallbacks: { [slotName: string]: (newHandler: Handler) => void } = {}
+    private _remoteHandlerRegistrationCallbacks:
+        { [slotName: string]: RemoteHandlerCallback } = {}
 
     /**
      * Callbacks provided by each slot allowing to unregister the remote handlers
      * created by the Transport, typically when the remote connection is closed.
      */
-    private _remoteHandlerDeletionCallbacks: { [slotName: string]: (newHandler: Handler) => void } = {}
+    private _remoteHandlerDeletionCallbacks:
+        { [slotName: string]: RemoteHandlerCallback } = {}
 
     /**
      * Requests that have been sent to the far end, but have yet to be fulfilled
      */
-    private _pendingRequests: PendingRequests = {}
+    private _pendingRequests: { [param: string]: PendingRequests } = {}
+
     private _channelReady = false
 
     constructor(private _channel: Channel) {
@@ -74,7 +91,7 @@ export class Transport {
                 case 'handler_registered':
                     return this._registerRemoteHandler(message)
                 case 'handler_unregistered':
-                    return this._unregisterRemoteHandler(message.slotName)
+                    return this._unregisterRemoteHandler(message)
                 case 'error':
                     return this._errorReceived(message)
                 default:
@@ -85,8 +102,10 @@ export class Transport {
             this._channelReady = true
 
             // When the far end connects, signal which local handlers are set
-            this._localHandlerRegistrations.forEach(msg => {
-                this._channel.send(msg)
+            Object.keys(this._localHandlerRegistrations).forEach(param => {
+                this._localHandlerRegistrations[param].forEach(msg => {
+                    this._channel.send(msg)
+                })
             })
         })
         this._channel.onDisconnect(() => {
@@ -108,32 +127,33 @@ export class Transport {
      * and send either a response or an error mirroring the request id,
      * depending on the status of the resulting promise
      */
-    private _requestReceived({ slotName, data, id }: TransportRequest): void {
+    private _requestReceived({ slotName, data, id, param }: TransportRequest): void {
         // Get local handlers
-        const handlers = this._localHandlers[slotName]
-        if (!handlers) {
-            return
-        }
+        const slotHandlers = this._localHandlers[slotName]
+        if (!slotHandlers) return
+
+        const handlers = slotHandlers[param]
+        if (!handlers) return
 
         // Call local handlers with the request data
         callHandlers(data, handlers)
-
             // If the resulting promise is fulfilled, send a response to the far end
             .then(response => this._channel.send({
                 type: 'response',
                 slotName,
                 id,
-                data: response
-            })
-            )
+                data: response,
+                param
+            }))
 
             // If the resulting promise is rejected, send an error to the far end
             .catch((error: Error) => this._channel.send({
-                type: 'error',
-                slotName,
                 id,
                 message: `${error}`,
-                stack: error.stack || ''
+                param,
+                slotName,
+                stack: error.stack || '',
+                type: 'error'
             }))
     }
 
@@ -141,26 +161,28 @@ export class Transport {
      * When a response is received from the far end, resolve the pending promise
      * with the received data
      */
-    private _responseReceived({ slotName, data, id }: TransportResponse): void {
-        if (!this._pendingRequests[slotName][id]) {
+    private _responseReceived({ slotName, data, id, param }: TransportResponse): void {
+        const slotRequests = this._pendingRequests[slotName]
+        if (!slotRequests || !slotRequests[param] || !slotRequests[param][id]) {
             return
         }
-        this._pendingRequests[slotName][id].resolve(data)
-        delete this._pendingRequests[slotName][id]
+
+        slotRequests[param][id].resolve(data)
+        delete slotRequests[param][id]
     }
 
     /**
      * When an error is received from the far end, reject the pending promise
      * with the received data
      */
-    private _errorReceived({ slotName, id, message, stack }: TransportError): void {
-        if (!this._pendingRequests[slotName][id]) {
-            return
-        }
-        const error = new Error(`${message} on ${slotName}`)
+    private _errorReceived({ slotName, id, message, stack, param }: TransportError): void {
+        const slotRequests = this._pendingRequests[slotName]
+        if (!slotRequests || !slotRequests[param] || !slotRequests[param][id]) return
+
+        const error = new Error(`${message} on ${slotName} with param ${param}`)
         error.stack = stack || error.stack
-        this._pendingRequests[slotName][id].reject(error)
-        delete this._pendingRequests[slotName][id]
+        this._pendingRequests[slotName][param][id].reject(error)
+        delete this._pendingRequests[slotName][param][id]
     }
 
     /**
@@ -170,14 +192,15 @@ export class Transport {
      * and rejection function
      *
      */
-    private _registerRemoteHandler({ slotName }: TransportMessage): void {
+    private _registerRemoteHandler({ slotName, param }: TransportRegistrationMessage): void {
+
         const addHandler = this._remoteHandlerRegistrationCallbacks[slotName]
-        if (!addHandler) {
-            return
-        }
-        if (this._remoteHandlers[slotName]) {
-            return
-        }
+        if (!addHandler) return
+
+        const slotHandlers = this._remoteHandlers[slotName]
+
+        if (slotHandlers && slotHandlers[param]) return
+
         const remoteHandler = (requestData: any) => new Promise((resolve, reject) => {
             // If the channel is not ready, reject immediately
             // TODO think of a better (buffering...) solution in the future
@@ -187,74 +210,89 @@ export class Transport {
 
             // Keep a reference to the pending promise's
             // resolution and rejection callbacks
-            if (!this._pendingRequests[slotName]) {
-                this._pendingRequests[slotName] = {}
-            }
             const id = getId()
-            this._pendingRequests[slotName][id] = { resolve, reject }
+
+            this._pendingRequests[slotName] = this._pendingRequests[slotName] || {}
+            this._pendingRequests[slotName][param] = this._pendingRequests[slotName][param] || {}
+            this._pendingRequests[slotName][param][id] = { resolve, reject }
 
             // Send a request to the far end
             this._channel.send({
                 type: 'request',
                 id,
                 slotName,
+                param,
                 data: requestData
             })
 
             // Handle request timeout if needed
             setTimeout(() => {
-                if (this._pendingRequests[slotName][id]) {
-                    this._pendingRequests[slotName][id].reject(new Error(`${ERRORS.TIMED_OUT} on ${slotName}`))
-                    delete this._pendingRequests[slotName][id]
+                const slotHandlers = this._pendingRequests[slotName] || {}
+                const paramHandlers = slotHandlers[param] || {}
+                const request = paramHandlers[id]
+                if (request) {
+                    const error = new Error(`${ERRORS.TIMED_OUT} on ${slotName} with param ${param}`)
+                    request.reject(error)
+                    delete this._pendingRequests[slotName][param][id]
                 }
             }, this._channel.timeout)
         })
-        this._remoteHandlers[slotName] = remoteHandler
-        addHandler(remoteHandler)
+
+        this._remoteHandlers[slotName] = this._remoteHandlers[slotName] || {}
+        this._remoteHandlers[slotName][param] = remoteHandler
+
+        addHandler(param, remoteHandler)
     }
 
-    private _unregisterRemoteHandler(slotName: string): void {
+    private _unregisterRemoteHandler(
+        { slotName, param }: { slotName: string, param: string }
+    ): void {
         const unregisterRemoteHandler = this._remoteHandlerDeletionCallbacks[slotName]
-        const remoteHandler = this._remoteHandlers[slotName]
+        const slotHandlers = this._remoteHandlers[slotName]
+        if (!slotHandlers) return
+
+        const remoteHandler = slotHandlers[param]
         if (remoteHandler && unregisterRemoteHandler) {
-            unregisterRemoteHandler(remoteHandler)
-            delete this._remoteHandlers[slotName]
+            unregisterRemoteHandler(param, remoteHandler)
+            delete this._remoteHandlers[slotName][param]
         }
     }
 
     private _unregisterAllRemoteHandlers(): void {
         Object.keys(this._remoteHandlerDeletionCallbacks)
             .forEach(slotName => {
-                this._unregisterRemoteHandler(slotName)
+                const slotHandlers = this._remoteHandlers[slotName]
+                if (!slotHandlers) return
+
+                const params = Object.keys(slotHandlers).filter(param => slotHandlers[param])
+                params.forEach(param => this._unregisterRemoteHandler({ slotName, param }))
             })
     }
 
     private _rejectAllPendingRequests(e: Error): void {
         Object.keys(this._pendingRequests).forEach(slotName => {
-            Object.keys(this._pendingRequests[slotName]).forEach(id => {
-                this._pendingRequests[slotName][id].reject(e)
+            Object.keys(this._pendingRequests[slotName]).forEach(param => {
+                Object.keys(this._pendingRequests[slotName][param]).forEach(id => {
+                    this._pendingRequests[slotName][param][id].reject(e)
+                })
             })
             this._pendingRequests[slotName] = {}
         })
     }
 
-    /**
-     * Called on slot creation.
-     * The provided callbacks will be used when remote handlers are registered,
-     * to add a corresponding local handler.
-     */
-    public onRemoteHandlerRegistered(slotName: string, addLocalHandler: (h: Handler<any, any>) => void): void {
+    public addRemoteHandlerRegistrationCallback(
+        slotName: string,
+        addLocalHandler: (p: string, h: Handler<any, any>) => void
+    ): void {
         if (!this._remoteHandlerRegistrationCallbacks[slotName]) {
             this._remoteHandlerRegistrationCallbacks[slotName] = addLocalHandler
         }
     }
 
-    /**
-     * Called on slot creation.
-     * The provided callbacks will be used when the far end disconnects,
-     * to remove the handlers we had registered.
-     */
-    public onRemoteHandlerUnregistered(slotName: string, removeHandler: (h: Handler<any, any>) => void): void {
+    public addRemoteHandlerUnregistrationCallback(
+        slotName: string,
+        removeHandler: (p: string, h: Handler<any, any>) => void
+    ): void {
         if (!this._remoteHandlerDeletionCallbacks[slotName]) {
             this._remoteHandlerDeletionCallbacks[slotName] = removeHandler
         }
@@ -264,21 +302,31 @@ export class Transport {
      * Called when a local handler is registered, to send a `handler_registered`
      * message to the far end.
      */
-    public registerHandler(slotName: string, handler: Handler<any, any>): void {
-        if (!this._localHandlers[slotName]) {
-            this._localHandlers[slotName] = []
-        }
-        this._localHandlers[slotName].push(handler)
+    public registerHandler(
+        slotName: string,
+        param: string,
+        handler: Handler<any, any>
+    ): void {
+
+        this._localHandlers[slotName] = this._localHandlers[slotName] || {}
+        this._localHandlers[slotName][param] = this._localHandlers[slotName][param] || []
+        this._localHandlers[slotName][param].push(handler)
+
         /**
          * We notify the far end when adding the first handler only, as they
          * only need to know if at least one handler is connected.
          */
-        if (this._localHandlers[slotName].length === 1) {
+        if (this._localHandlers[slotName][param].length === 1) {
             const registrationMessage: TransportRegistrationMessage = {
                 type: 'handler_registered',
+                param,
                 slotName
             }
-            this._localHandlerRegistrations.push(registrationMessage)
+            this._localHandlerRegistrations[param] =
+                this._localHandlerRegistrations[param] || []
+
+            this._localHandlerRegistrations[param].push(registrationMessage)
+
             if (this._channelReady) {
                 this._channel.send(registrationMessage)
             }
@@ -289,18 +337,24 @@ export class Transport {
      * Called when a local handler is unregistered, to send a `handler_unregistered`
      * message to the far end.
      */
-    public unregisterHandler(slotName: string, handler: Handler<any, any>): void {
-        if (this._localHandlers[slotName]) {
-            const ix = this._localHandlers[slotName].indexOf(handler)
+    public unregisterHandler(
+        slotName: string,
+        param: string,
+        handler: Handler<any, any>
+    ): void {
+        const slotLocalHandlers = this._localHandlers[slotName]
+        if (slotLocalHandlers && slotLocalHandlers[param]) {
+            const ix = slotLocalHandlers[param].indexOf(handler)
             if (ix > -1) {
-                this._localHandlers[slotName].splice(ix, 1)
+                slotLocalHandlers[param].splice(ix, 1)
                 /**
                  * We notify the far end when removing the last handler only, as they
                  * only need to know if at least one handler is connected.
                  */
-                if (this._localHandlers[slotName].length === 0) {
+                if (slotLocalHandlers[param].length === 0) {
                     const unregistrationMessage: TransportUnregistrationMessage = {
                         type: 'handler_unregistered',
+                        param,
                         slotName
                     }
                     if (this._channelReady) {
