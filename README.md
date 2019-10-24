@@ -1,7 +1,7 @@
 # ts-event-bus
 [![by Dashlane](https://rawgit.com/dashlane/ts-event-bus/master/by_dashlane.svg)](https://www.dashlane.com/)
 
-[![Build Status](https://travis-ci.org/Dashlane/ts-event-bus.svg?branch=master)](https://travis-ci.org/Dashlane/ts-event-bus)
+[![Build Status](https://github.com/Dashlane/ts-event-bus/actions/workflows/build.yml/badge.svg)](https://github.com/Dashlane/ts-event-bus/actions/workflows/build.yml)
 [![Dependency Status](https://david-dm.org/Dashlane/ts-event-bus.svg)](https://david-dm.org/Dashlane/ts-event-bus)
 
 Distributed messaging in Typescript
