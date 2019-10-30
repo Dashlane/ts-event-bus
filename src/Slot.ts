@@ -8,7 +8,8 @@ const notConnectedSlot: Slot<any, any> = Object.assign(
     () => signalNotConnected(),
     {
         on: signalNotConnected,
-        lazy: signalNotConnected
+        lazy: signalNotConnected,
+        slotName: 'Not connected'
     }
 )
 
@@ -59,22 +60,25 @@ export interface Slot<RequestData=null, ResponseData=void> {
     // optional only when explicitly typed as such by the client.
 
     // Trigger the slot with explicit param
-    (param: string, requestData: RequestData): Promise<ResponseData>,
+    (param: string, requestData: RequestData): Promise<ResponseData>
 
     // Trigger the slot with default param
-    (requestData: RequestData): Promise<ResponseData>,
+    (requestData: RequestData): Promise<ResponseData>
 
     // Listen to events sent through the slot on explicit param
-    on(param: string, handler: Handler<RequestData, ResponseData>): Unsubscribe,
+    on(param: string, handler: Handler<RequestData, ResponseData>): Unsubscribe
 
     // Listen to events sent through the slot on default param
     on(handler: Handler<RequestData, ResponseData>): Unsubscribe
 
     // Provide the slot with lazy callbacks
-    lazy(connect: LazyCallback, disconnect: LazyCallback): Unsubscribe,
+    lazy(connect: LazyCallback, disconnect: LazyCallback): Unsubscribe
 
     // Retreive slot configuration
     config?: SlotConfig
+
+    // Helpful for debugging
+    slotName: string
 }
 
 /**
@@ -329,5 +333,5 @@ export function connectSlot<T=void, T2=void>(
         }
     }
 
-    return Object.assign(trigger, { on, lazy, config })
+    return Object.assign(trigger, { on, lazy, config, slotName })
 }
