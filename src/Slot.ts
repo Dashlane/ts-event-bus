@@ -4,14 +4,24 @@ import { DEFAULT_PARAM } from './Constants'
 
 const signalNotConnected = () => { throw new Error('Slot not connected') }
 
-const notConnectedSlot: Slot<any, any> = Object.assign(
-    () => signalNotConnected(),
-    {
-        on: signalNotConnected,
-        lazy: signalNotConnected,
-        slotName: 'Not connected'
-    }
-)
+interface SlotConfig {
+    // This option will prevent the slot from buffering the
+    // requests if no remote handlers are set for some transports.
+    noBuffer?: boolean
+}
+
+export const defaultSlotConfig = { noBuffer: false }
+
+const getNotConnectedSlot = (config: SlotConfig): Slot<any, any> =>
+    Object.assign(
+        () => signalNotConnected(),
+        {
+            config,
+            lazy: () => signalNotConnected,
+            on: () => signalNotConnected,
+            slotName: 'Not connected'
+        }
+    )
 
 export type LazyCallback = (param: string) => void
 export type Unsubscribe = () => void
@@ -40,12 +50,6 @@ const findAllUsedParams = (handlers: Handlers): string[] =>
         const paramsUniq = [...new Set(paramsMaybeDuplicate)]
         return paramsUniq
     }, [] as string[])
-
-interface SlotConfig {
-    // This option will prevent the slot from buffering the
-    // requests if no remote handlers are set for some transports.
-    noBuffer?: boolean
-}
 
 /**
  * Represents an event shared by two modules.
@@ -81,15 +85,16 @@ export interface Slot<RequestData=null, ResponseData=void> {
     slotName: string
 }
 
+
 /**
  * A shorthand function used to declare slots in event bus object literals
  * It returns a fake slot, that will throw if triggered or subscribed to.
  * Slots need to be connected in order to be functional.
  */
 export function slot<RequestData=void, ResponseData=void>(
-    config: SlotConfig = { noBuffer: false }
+    config: SlotConfig = defaultSlotConfig
 ): Slot<RequestData, ResponseData> {
-    return Object.assign(notConnectedSlot, config)
+    return getNotConnectedSlot(config)
 }
 
 export function connectSlot<T=void, T2=void>(

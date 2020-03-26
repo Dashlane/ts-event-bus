@@ -1,7 +1,7 @@
 import 'should'
 import { spy } from 'sinon'
 
-import { connectSlot } from './../src/Slot'
+import { connectSlot, slot, defaultSlotConfig } from './../src/Slot'
 import { TestChannel } from './TestChannel'
 import { Transport } from './../src/Transport'
 import { DEFAULT_PARAM } from './../src/Constants'
@@ -13,6 +13,24 @@ const makeTestTransport = () => {
     channel.callConnected()
     return { channel, transport }
 }
+
+describe('slot', () => {
+    it('should have a default config', () => {
+        const testSlot = slot()
+        if (!testSlot.config) {
+            throw new Error('testSlot should have a config')
+        }
+        testSlot.config.should.match(defaultSlotConfig)
+    })
+    it('should set config passed as argument', () => {
+        const config = { noBuffer: true }
+        const testSlot = slot(config)
+        if (!testSlot.config) {
+            throw new Error('testSlot should have a config')
+        }
+        testSlot.config.should.match(config)
+    })
+})
 
 describe('connectSlot', () => {
 
