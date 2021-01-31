@@ -1,4 +1,3 @@
-import * as sinon from 'sinon'
 import { ChunkedChannel } from './../src/Channels/ChunkedChannel'
 import { GenericChannel } from './../src/Channels/GenericChannel'
 import { TransportMessage } from './../src/Message'
@@ -6,7 +5,7 @@ import { DEFAULT_PARAM } from './../src/Constants'
 
 export class TestChannel extends GenericChannel {
 
-    public sendSpy = sinon.spy()
+    public sendSpy = jest.fn()
 
     constructor() {
         super()
@@ -24,7 +23,7 @@ export class TestChannel extends GenericChannel {
         this._disconnected()
     }
 
-    public callMessageReceived()  {
+    public callMessageReceived() {
         this._messageReceived({
             type: 'error',
             slotName: 'test',
@@ -52,8 +51,8 @@ export class TestChannel extends GenericChannel {
 }
 
 export class TestChunkedChannel extends ChunkedChannel {
-    public sendSpy = sinon.spy()
-    public dataSpy = sinon.spy()
+    public sendSpy = jest.fn()
+    public dataSpy = jest.fn()
 
     constructor(chunkSize: number, stringAlloc = -1) {
         super({

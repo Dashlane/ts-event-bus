@@ -1,40 +1,40 @@
-import 'should'
-
 import { Transport } from './../src/Transport'
 import { TransportMessage } from './../src/Message'
 import { TestChannel } from './TestChannel'
-import * as sinon from 'sinon'
-import { SinonSpy } from 'sinon'
 
 const param = 'param'
 
 describe('Transport', () => {
 
-    context('subscriptions', () => {
+    describe('subscriptions', () => {
 
         const channel = new TestChannel()
         const stubMethods: Array<keyof TestChannel> = ['onConnect', 'onDisconnect', 'onData', 'onError']
-        stubMethods.forEach(method => sinon.stub(channel, method))
+        // tslint:disable-next-line
+        stubMethods.forEach(method => { Object.defineProperty(channel, method, { value: jest.fn() }) });
+
+        // tslint:disable-next-line
         new Transport(channel)
 
-        stubMethods.forEach(methodName => it(`should subscribe to its channel\'s ${methodName} method`, () => {
-            const method = channel[methodName] as any as sinon.SinonSpy
-            method.called.should.be.True()
-            method.restore()
-        }))
+        stubMethods.forEach(methodName => {
+            it(`should subscribe to its channel\'s ${methodName} method`, () => {
+                expect(channel[methodName]).toHaveBeenCalled()
+            })
+        })
 
     })
 
-    context('handler registration, requests and unregistration', () => {
+    describe('handler registration, requests and unregistration', () => {
 
         let channel: TestChannel
         let transport: Transport
-        let slots: { [slotName: string]: SinonSpy[] }
+        let slots: { [slotName: string]: jest.Mock[] }
 
         beforeEach(() => {
+            jest.resetAllMocks()
             slots = {
-                buildCelery: [sinon.spy(() => ({ color: 'blue' }))],
-                getCarrotStock: [sinon.spy(), sinon.spy()]
+                buildCelery: [jest.fn(() => ({ color: 'blue' }))],
+                getCarrotStock: [jest.fn(), jest.fn()]
             }
             channel = new TestChannel()
             transport = new Transport(channel)
@@ -44,11 +44,11 @@ describe('Transport', () => {
         it('should send a handler_registered message for each slot when a local handler is registered', () => {
             Object.keys(slots).forEach(slotName => {
                 transport.registerHandler(slotName, param, slots[slotName][0])
-                channel.sendSpy.calledWith({
+                expect(channel.sendSpy).toHaveBeenCalledWith({
                     type: 'handler_registered',
                     param,
                     slotName
-                }).should.be.True()
+                })
             })
         })
 
@@ -56,10 +56,7 @@ describe('Transport', () => {
             const slotName = 'getCarrotStock'
             transport.registerHandler(slotName, param, slots[slotName][0])
             transport.registerHandler(slotName, param, slots[slotName][1])
-            channel.sendSpy
-                .withArgs({ type: 'handler_registered', slotName, param })
-                .calledOnce // should have been called exactly once
-                .should.be.True()
+            expect(channel.sendSpy).toHaveBeenCalledWith({ type: 'handler_registered', slotName, param })
         })
 
         it('should not send a handler_unregistered message when an additional local handler is unregistered', () => {
@@ -67,10 +64,7 @@ describe('Transport', () => {
             transport.registerHandler(slotName, param, slots[slotName][0])
             transport.registerHandler(slotName, param, slots[slotName][1])
             transport.unregisterHandler(slotName, param, slots[slotName][1])
-            channel.sendSpy
-                .withArgs({ type: 'handler_unregistered', slotName, param })
-                .called
-                .should.be.False()
+            expect(channel.sendSpy).not.toHaveBeenCalledWith({ type: 'handler_unregistered', slotName, param })
         })
 
 
@@ -96,8 +90,8 @@ describe('Transport', () => {
             channel.fakeReceive(request)
 
             await Promise.resolve() // yield to ts-event-bus internals
-            handler.calledWith(request.data).should.be.True()
-            channel.sendSpy.lastCall.args[0].should.eql({
+            expect(handler).toHaveBeenCalledWith(request.data)
+            expect(channel.sendSpy).toHaveBeenLastCalledWith({
                 slotName,
                 type: 'response',
                 id: '5',
@@ -118,11 +112,11 @@ describe('Transport', () => {
             // Unregister it
             transport.unregisterHandler(slotName, param, slots[slotName][0])
 
-            channel.sendSpy.calledWith({
+            expect(channel.sendSpy).toHaveBeenCalledWith({
                 type: 'handler_unregistered',
                 param,
                 slotName
-            }).should.be.True()
+            })
         })
 
         it('should not call the unregistered handler when a request is received', async () => {
@@ -148,7 +142,7 @@ describe('Transport', () => {
             }
             channel.fakeReceive(request)
             await Promise.resolve() // yield to ts-event-bus internals
-            handler.called.should.be.False()
+            expect(handler).not.toHaveBeenCalled()
         })
 
         it('should not send a handler_unregistered message when an additional local handler is unregistered', () => {
@@ -162,37 +156,37 @@ describe('Transport', () => {
             // Unregister one handler only
             transport.unregisterHandler(slotName, param, slots[slotName][0])
 
-            channel.sendSpy.calledWith({
+            expect(channel.sendSpy).not.toHaveBeenCalledWith({
                 type: 'handler_unregistered',
                 slotName
-            }).should.be.False()
+            })
         })
 
-        context('adding, using and removing a remote handler', () => {
+        describe('adding, using and removing a remote handler', () => {
 
             const slotName = 'getCarrotStock'
 
-            let addLocalHandler: SinonSpy
-            let removeLocalHandler: SinonSpy
+            let addLocalHandler: jest.Mock
+            let removeLocalHandler: jest.Mock
             let localHandler: (...args: any[]) => Promise<any>
 
             beforeEach(() => {
-                addLocalHandler = sinon.spy()
-                removeLocalHandler = sinon.spy()
+                addLocalHandler = jest.fn()
+                removeLocalHandler = jest.fn()
                 transport.addRemoteHandlerRegistrationCallback(slotName, addLocalHandler)
                 channel.fakeReceive({ type: 'handler_registered', slotName, param })
-                localHandler = addLocalHandler.lastCall.args[1]
+                localHandler = addLocalHandler.mock.calls[addLocalHandler.mock.calls.length - 1][1]
             })
 
             it('should add a local handler when a remote handler registration is received', () => {
-                addLocalHandler.called.should.be.True()
+                expect(addLocalHandler).toHaveBeenCalled()
             })
 
             it('should resolve a local pending request when a response is received', async () => {
                 const requestData = { carrotType: 'red' }
                 const pendingPromise = localHandler(requestData)
-                const request = channel.sendSpy.lastCall.args[0]
-                request.should.match({
+                const request = channel.sendSpy.mock.calls[channel.sendSpy.mock.calls.length - 1][0]
+                expect(request).toMatchObject({
                     type: 'request',
                     slotName,
                     data: requestData
@@ -206,12 +200,12 @@ describe('Transport', () => {
                     data: responseData
                 })
                 const response = await pendingPromise
-                response.should.eql(responseData)
+                expect(response).toEqual(responseData)
             })
 
             it('should reject a local pending request when an error is received', async () => {
                 const pendingPromise = localHandler({ carrotType: 'blue' })
-                const { id, param } = channel.sendSpy.lastCall.args[0]
+                const { id, param } = channel.sendSpy.mock.calls[channel.sendSpy.mock.calls.length - 1][0]
                 channel.fakeReceive({
                     type: 'error',
                     id,
@@ -224,7 +218,7 @@ describe('Transport', () => {
                     throw new Error('Promise should have been rejected')
                 }
                 catch (err) {
-                    `${err}`.should.eql('Error: all out of blue on getCarrotStock with param param')
+                    expect(`${err}`).toEqual('Error: all out of blue on getCarrotStock with param param')
                 }
             })
 
@@ -235,7 +229,7 @@ describe('Transport', () => {
                     param,
                     slotName
                 })
-                removeLocalHandler.called.should.be.True()
+                expect(removeLocalHandler).toHaveBeenCalled()
             })
 
             it('should unregister all remote handlers when channel gets disconnected', () => {
@@ -246,7 +240,7 @@ describe('Transport', () => {
                 channel.callDisconnected()
 
                 // Callback should have been called
-                removeLocalHandler.called.should.be.True()
+                expect(removeLocalHandler).toHaveBeenCalled()
             })
         })
     })

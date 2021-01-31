@@ -1,6 +1,3 @@
-import 'should'
-import { spy } from 'sinon'
-
 import { connectSlot, slot, defaultSlotConfig } from './../src/Slot'
 import { TestChannel } from './TestChannel'
 import { Transport } from './../src/Transport'
@@ -20,7 +17,7 @@ describe('slot', () => {
         if (!testSlot.config) {
             throw new Error('testSlot should have a config')
         }
-        testSlot.config.should.match(defaultSlotConfig)
+        expect(testSlot.config).toEqual(defaultSlotConfig)
     })
     it('should set config passed as argument', () => {
         const config = { noBuffer: true }
@@ -28,13 +25,13 @@ describe('slot', () => {
         if (!testSlot.config) {
             throw new Error('testSlot should have a config')
         }
-        testSlot.config.should.match(config)
+        expect(testSlot.config).toEqual(config)
     })
 })
 
 describe('connectSlot', () => {
 
-    context('without parameter', () => {
+    describe('without parameter', () => {
 
         describe('trigger', () => {
             it('should use default parameter', async () => {
@@ -42,7 +39,7 @@ describe('connectSlot', () => {
                 numberToString.on(DEFAULT_PARAM, num => `${num.toString()}`)
 
                 const res = await numberToString(56)
-                res.should.eql('56')
+                expect(res).toEqual('56')
             })
         })
 
@@ -52,19 +49,19 @@ describe('connectSlot', () => {
                 numberToString.on(num => `${num.toString()}`)
 
                 const res = await numberToString(DEFAULT_PARAM, 56)
-                res.should.eql('56')
+                expect(res).toEqual('56')
             })
         })
     })
 
-    context('with no transports', () => {
+    describe('with no transports', () => {
 
         it('should call a single local handler registered for a parameter', async () => {
             const numberToString = connectSlot<number, string>('numberToString', [])
             numberToString.on('a', num => `a${num.toString()}`)
 
             const res = await numberToString('a', 56)
-            res.should.eql('a56')
+            expect(res).toEqual('a56')
         })
 
         it('should call all handlers if there is more than one', async () => {
@@ -80,7 +77,7 @@ describe('connectSlot', () => {
 
             await broadcastBool('a', true)
 
-            results.should.eql([ '1:true', '2:true', '3:true' ])
+            expect(results).toEqual(['1:true', '2:true', '3:true'])
         })
 
         it('should allow subscribing to multiple parameters', async () => {
@@ -91,10 +88,10 @@ describe('connectSlot', () => {
             broadcastBool.on('remove', n => { value -= n })
 
             await broadcastBool('add', 3)
-            value.should.eql(3)
+            expect(value).toEqual(3)
 
             await broadcastBool('remove', 2)
-            value.should.eql(1)
+            expect(value).toEqual(1)
         })
 
         it('should allow to unregister handlers', async () => {
@@ -105,12 +102,12 @@ describe('connectSlot', () => {
             broadcastBool.on('add', n => { value += n })
 
             await broadcastBool('add', 3)
-            value.should.eql(6) // 2 * 3
+            expect(value).toEqual(6) // 2 * 3
 
             unsub()
 
             await broadcastBool('add', 3)
-            value.should.eql(9) // 6 + 1 * 3
+            expect(value).toEqual(9) // 6 + 1 * 3
         })
 
         it('should call lazy connect and disconnect with parameter', () => {
@@ -118,27 +115,21 @@ describe('connectSlot', () => {
 
             const param = 'param'
 
-            const connect = spy()
-            const disconnect = spy()
+            const connect = jest.fn()
+            const disconnect = jest.fn()
 
             broadcastBool.lazy(connect, disconnect)
 
-            const unsubscribe = broadcastBool.on(param, () => {})
+            const unsubscribe = broadcastBool.on(param, () => { })
 
-            if (!connect.calledWith(param))
-                throw new Error('connect should have been called with parameter')
-
-            if (disconnect.called)
-                throw new Error('disconnect should not have been called with parameter')
-
+            expect(connect).toHaveBeenCalledWith(param)
+            expect(disconnect).not.toHaveBeenCalled()
             unsubscribe()
-
-            if (!disconnect.calledWith(param))
-                throw new Error('disconnect should have been called with parameter')
+            expect(disconnect).toHaveBeenCalled()
         })
     })
 
-    context('with local and remote handlers', () => {
+    describe('with local and remote handlers', () => {
 
         it('should call both local handlers and remote handlers', async () => {
             const { channel, transport } = makeTestTransport()
@@ -149,7 +140,7 @@ describe('connectSlot', () => {
 
             // Handlers should not be called until a remote handler is registered
             await Promise.resolve()
-            localCalled.should.be.False()
+            expect(localCalled).toEqual(false)
 
             channel.fakeReceive({
                 param: DEFAULT_PARAM,
@@ -162,10 +153,10 @@ describe('connectSlot', () => {
             await new Promise(resolve => setTimeout(resolve, 0))
 
             // Once a remote handler is registered, both local and remote should be called
-            localCalled.should.be.True()
-            const request = channel.sendSpy.lastCall.args[0]
+            expect(localCalled).toEqual(true)
+            const request = channel.sendSpy.mock.calls[channel.sendSpy.mock.calls.length - 1][0]
 
-            request.should.match({
+            expect(request).toMatchObject({
                 data: true,
                 param: DEFAULT_PARAM,
                 slotName: 'broadcastBool',
@@ -196,7 +187,7 @@ describe('connectSlot', () => {
                 broadcastBool(true)
 
                 // We should have called the trigger
-                localCalled.should.be.True()
+                expect(localCalled).toEqual(true)
 
                 const registrationMessage: TransportRegistrationMessage = {
                     param: DEFAULT_PARAM,
@@ -209,8 +200,8 @@ describe('connectSlot', () => {
 
                 // Remote should not have been called, as it was not registered
                 // at the time of the trigger.
-                const request = channel.sendSpy.lastCall.args[0]
-                request.should.match(registrationMessage)
+                const request = channel.sendSpy.mock.calls[0]
+                expect(request).toMatchObject(request)
             })
         })
 
@@ -226,8 +217,8 @@ describe('connectSlot', () => {
                     [transport1, transport2]
                 )
 
-                const connect = spy()
-                const disconnect = spy()
+                const connect = jest.fn()
+                const disconnect = jest.fn()
 
                 broadcastBool.lazy(connect, disconnect)
 
@@ -245,12 +236,10 @@ describe('connectSlot', () => {
                 })
 
                 // Connect should have been called once
-                if (!connect.calledOnceWith(param))
-                    throw new Error('connect should have been called once with param')
+                expect(connect).toHaveBeenCalledWith(param)
 
                 // Disconnect should not have been called
-                if (disconnect.called)
-                    throw new Error('disconnect should not have been called')
+                expect(disconnect).not.toHaveBeenCalled()
 
                 // Disconnect first remote client
                 channel1.fakeReceive({
@@ -260,8 +249,7 @@ describe('connectSlot', () => {
                 })
 
                 // Disconnect should not have been called
-                if (disconnect.called)
-                    throw new Error('disconnect should not have been called')
+                expect(disconnect).not.toHaveBeenCalled()
 
                 // Disconnect second remote client
                 channel2.fakeReceive({
@@ -271,8 +259,7 @@ describe('connectSlot', () => {
                 })
 
                 // Disconnect should have been called once
-                if (!disconnect.calledOnceWith(param))
-                    throw new Error('disconnect should have been called once with param')
+                expect(disconnect).toHaveBeenCalledWith(param)
             })
 
             it('should support multiple lazy calls', () => {
@@ -280,11 +267,11 @@ describe('connectSlot', () => {
 
                 const param = 'param'
 
-                const connect1 = spy()
-                const disconnect1 = spy()
+                const connect1 = jest.fn()
+                const disconnect1 = jest.fn()
 
-                const connect2 = spy()
-                const disconnect2 = spy()
+                const connect2 = jest.fn()
+                const disconnect2 = jest.fn()
 
                 const broadcastBool = connectSlot<boolean>(
                     'broadcastBool',
@@ -301,11 +288,8 @@ describe('connectSlot', () => {
                 })
 
                 // Connects should have been called once
-                if (!connect1.calledOnceWith(param))
-                    throw new Error('connect1 should have been called once with param')
-
-                if (!connect2.calledOnceWith(param))
-                    throw new Error('connect2 should have been called once with param')
+                expect(connect1).toHaveBeenCalledWith(param)
+                expect(connect2).toHaveBeenCalledWith(param)
 
                 channel1.fakeReceive({
                     type: 'handler_unregistered',
@@ -313,12 +297,8 @@ describe('connectSlot', () => {
                     param
                 })
 
-                // Disonnects should have been called once
-                if (!disconnect1.calledOnceWith(param))
-                    throw new Error('disconnect1 should have been called once with param')
-
-                if (!disconnect2.calledOnceWith(param))
-                    throw new Error('disconnect2 should have been called once with param')
+                expect(disconnect1).toHaveBeenCalledWith(param)
+                expect(disconnect2).toHaveBeenCalledWith(param)
             })
 
             it('should call connect if transport was registered before lazy was called', () => {
@@ -326,7 +306,7 @@ describe('connectSlot', () => {
                 const { channel: channel1, transport: transport1 } = makeTestTransport()
                 const broadcastBool = connectSlot<boolean>('broadcastBool', [transport1])
 
-                const connect = spy()
+                const connect = jest.fn()
 
                 // Register remote handler *before* calling lazy
                 channel1.fakeReceive({
@@ -335,11 +315,9 @@ describe('connectSlot', () => {
                     param
                 })
 
-                broadcastBool.lazy(connect, () => {})
+                broadcastBool.lazy(connect, () => { })
 
-                // Connect should have been called once
-                if (!connect.calledOnceWith(param))
-                    throw new Error('connect should have been called once with param')
+                expect(connect).toHaveBeenCalledWith(param, 0, [param])
             })
         })
     })

@@ -6,7 +6,7 @@
  *
  * Handlers may be synchronous or asynchronous. Asynchronicity is Promise-based.
  */
-export type Handler<RequestData=any, ResponseData=any> = (requestData: RequestData) => ResponseData | Promise<ResponseData>
+export type Handler<RequestData = any, ResponseData = any> = (requestData: RequestData) => ResponseData | Promise<ResponseData>
 
 /**
  * Helper function that allows to call synchronous and asynchronous handler
