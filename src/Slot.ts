@@ -59,7 +59,7 @@ const findAllUsedParams = (handlers: Handlers): string[] =>
  *
  * The slot can also be subscribed to, by using the `on` property.
  */
-export interface Slot<RequestData=null, ResponseData=void> {
+export interface Slot<RequestData = null, ResponseData = void> {
     // TODO: Find a solution to make it possible to omit the requestData as
     // optional only when explicitly typed as such by the client.
 
@@ -91,13 +91,13 @@ export interface Slot<RequestData=null, ResponseData=void> {
  * It returns a fake slot, that will throw if triggered or subscribed to.
  * Slots need to be connected in order to be functional.
  */
-export function slot<RequestData=void, ResponseData=void>(
+export function slot<RequestData = void, ResponseData = void>(
     config: SlotConfig = defaultSlotConfig
 ): Slot<RequestData, ResponseData> {
     return getNotConnectedSlot(config)
 }
 
-export function connectSlot<T=void, T2=void>(
+export function connectSlot<T = void, T2 = void>(
     slotName: string,
     transports: Transport[],
     config: SlotConfig = {}
@@ -300,7 +300,7 @@ export function connectSlot<T=void, T2=void>(
 
         // Get param and handler from arguments, depending if param was passed or not
         let param = ""
-        let handler: Handler<any, any> = () => new Promise(r => r())
+        let handler: Handler<any, any> = () => new Promise<void>(r => r())
 
         if (typeof paramOrHandler === 'string') {
             param = paramOrHandler

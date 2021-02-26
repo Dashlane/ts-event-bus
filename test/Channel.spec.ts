@@ -1,41 +1,37 @@
-import 'should'
-
 import { TestChannel, TestChunkedChannel } from './TestChannel'
-import * as sinon from 'sinon'
 import { largeData } from './data'
 
 describe('GenericChannel', () => {
-
     it('should call onConnect subscribers when its _connected method is called', () => {
         const testInstance = new TestChannel()
-        const spy = sinon.spy()
+        const spy = jest.fn()
         testInstance.onConnect(spy)
         testInstance.callConnected()
-        spy.called.should.be.True()
+        expect(spy).toHaveBeenCalled()
     })
 
     it('should call onDisconnect subscribers when its _disconnected method is called', () => {
         const testInstance = new TestChannel()
-        const spy = sinon.spy()
+        const spy = jest.fn()
         testInstance.onDisconnect(spy)
         testInstance.callDisconnected()
-        spy.called.should.be.True()
+        expect(spy).toHaveBeenCalled()
     })
 
     it('should call onData callbacks when its _messageReceived method is called', () => {
         const testInstance = new TestChannel()
-        const spy = sinon.spy()
+        const spy = jest.fn()
         testInstance.onData(spy)
         testInstance.callMessageReceived()
-        spy.called.should.be.True()
+        expect(spy).toHaveBeenCalled()
     })
 
     it('should call onError callbacks when its _error method is called', () => {
         const testInstance = new TestChannel()
-        const spy = sinon.spy()
+        const spy = jest.fn()
         testInstance.onError(spy)
         testInstance.callError()
-        spy.called.should.be.True()
+        expect(spy).toHaveBeenCalled()
     })
 
 })
@@ -50,13 +46,13 @@ describe('ChunkedChannel', () => {
 
         const testInstance = new TestChunkedChannel(chunkSize)
         testInstance.onData(d => {
-            testInstance.sendSpy.getCall(0).args[0].type.should.equal('chunk_start')
-            testInstance.sendSpy.getCall(1).args[0].type.should.equal('chunk_data')
-            testInstance.sendSpy.getCall(1).args[0].chunkId.should.be.a.String
-            testInstance.sendSpy.getCall(1).args[0].data.should.be.lengthOf(chunkSize)
-            d.should.match(testObject)
-            testInstance.sendSpy.callCount.should.equal(numberOfMessages)
-            testInstance.dataSpy.callCount.should.equal(1)
+            expect(testInstance.sendSpy.mock.calls[0][0].type).toEqual('chunk_start')
+            expect(testInstance.sendSpy.mock.calls[1][0].type).toEqual('chunk_data')
+            expect(typeof testInstance.sendSpy.mock.calls[1][0].chunkId).toEqual('string')
+            expect(testInstance.sendSpy.mock.calls[1][0].data).toHaveLength(chunkSize)
+            expect(d).toMatchObject(testObject)
+            expect(testInstance.sendSpy.mock.calls).toHaveLength(numberOfMessages)
+            expect(testInstance.dataSpy.mock.calls).toHaveLength(1)
         })
         testInstance.send(testObject)
     }
@@ -108,9 +104,9 @@ describe('ChunkedChannel', () => {
         const testInstance = new TestChunkedChannel(100)
         testInstance.onData(d => {
             // The first message sent should be the message itself, instead of 'chunk_start'
-            testInstance.sendSpy.getCall(0).args[0].should.match(smallObject)
-            testInstance.sendSpy.callCount.should.equal(1)
-            testInstance.dataSpy.callCount.should.equal(1)
+            expect(testInstance.sendSpy.mock.calls[0][0]).toMatchObject(smallObject)
+            expect(testInstance.sendSpy.mock.calls).toHaveLength(1)
+            expect(testInstance.dataSpy.mock.calls).toHaveLength(1)
         })
         testInstance.send(smallObject as any)
     })
@@ -124,7 +120,7 @@ describe('ChunkedChannel', () => {
         }
         const testInstance = new TestChunkedChannel(100, 500)
         testInstance.onData(d => {
-            testInstance.dataSpy.getCall(0).args[0].should.match(obj)
+            expect(testInstance.dataSpy.mock.calls[0][0]).toMatchObject(obj)
         })
         testInstance.send(obj as any)
     })
