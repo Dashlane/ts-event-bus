@@ -168,15 +168,16 @@ disconnectLazy()
 
 ### Buffering
 
-When the eventBus is created with channels, slots will wait for all transports to have
-registered callbacks before triggering.
+When the eventBus is created with channels, slots will not wait for all
+transports to have registered callbacks before triggering.
 
-This buffering mechanism can be disabled at the slot level with the `noBuffer` config option:
+This buffering mechanism can be enabled at the slot level with the `buffer`
+config option explicitly set to `true`:
 
 ```typescript
 const MyEvents = {
     willWait: slot<string>(),
-    wontWait: slot<string>({ noBuffer: true }),
+    wontWait: slot<string>({ buffer: true }),
 }
 ```
 

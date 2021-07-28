@@ -5,12 +5,12 @@ import { DEFAULT_PARAM } from './Constants'
 const signalNotConnected = () => { throw new Error('Slot not connected') }
 
 interface SlotConfig {
-    // This option will prevent the slot from buffering the
-    // requests if no remote handlers are set for some transports.
-    noBuffer?: boolean
+    // This option will enable the slot to buffer the requests and wait
+    // for all remote handlers to be set for some transports.
+    buffer?: boolean
 }
 
-export const defaultSlotConfig = { noBuffer: false }
+export const defaultSlotConfig = { buffer: false }
 
 const getNotConnectedSlot = (config: SlotConfig): Slot<any, any> =>
     Object.assign(
@@ -220,7 +220,7 @@ export function connectSlot<T = void, T2 = void>(
         const data: any = paramUsed ? secondArg : firstArg
         const param: string = paramUsed ? firstArg : DEFAULT_PARAM
 
-        if (config.noBuffer || transports.length === 0) {
+        if (!config.buffer || transports.length === 0) {
             const allParamHandlers = getParamHandlers(param, handlers)
             return callHandlers(data, allParamHandlers)
         }
