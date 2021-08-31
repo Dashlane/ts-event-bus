@@ -1,4 +1,4 @@
-import { GenericChannel } from './../../src/Channel'
+import { GenericChannel } from './../../src/Channels/GenericChannel'
 
 export class WorkerChannel extends GenericChannel {
 
