@@ -244,4 +244,82 @@ describe('Transport', () => {
             })
         })
     })
+
+    describe('channel connection status', () => {
+
+        let channel: TestChannel
+        let transport: Transport
+
+        beforeEach(() => {
+            jest.resetAllMocks()
+            channel = new TestChannel()
+            transport = new Transport(channel)
+            channel.callConnected()
+        })
+
+        it('should be indicated as connected', () => {
+            expect(transport.isDisconnected()).toEqual(false)
+        })
+
+        it('should be indicated as disconnected', () => {
+            // Disconnect channel
+            channel.callDisconnected()
+
+            expect(transport.isDisconnected()).toEqual(true)
+        })
+
+    })
+
+    describe('channel autoreconnect', () => {
+
+        let channel: TestChannel
+        let transport: Transport
+
+        beforeEach(() => {
+            jest.resetAllMocks()
+            channel = new TestChannel()
+            transport = new Transport(channel)
+        })
+
+        describe('when already connected', () => {
+            beforeEach(() => {
+                jest.resetAllMocks()
+                channel.autoReconnectSpy.mockClear()
+                channel.callConnected()
+            })
+
+            it('should not call the channel autoReconnect method', () => {
+                transport.autoReconnect()
+                expect(channel.autoReconnectSpy).not.toHaveBeenCalled()
+            })
+
+            it('should not call the channel onConnect method', () => {
+                Object.defineProperty(channel, 'onConnect', { value: jest.fn() })
+                transport.autoReconnect()
+
+                expect(channel['onConnect']).not.toHaveBeenCalled()
+            })
+        })
+
+        describe('when disconnected', () => {
+            beforeEach(() => {
+                jest.resetAllMocks()
+                channel.autoReconnectSpy.mockClear()
+                channel.callDisconnected()
+            })
+
+            it('should call the channel autoReconnect method', () => {
+                transport.autoReconnect()
+                expect(channel.autoReconnectSpy).toHaveBeenCalled()
+            })
+
+            it('should call the channel onConnect method', () => {
+                Object.defineProperty(channel, 'onConnect', { value: jest.fn() })
+                transport.autoReconnect()
+
+                expect(channel['onConnect']).toHaveBeenCalledTimes(1)
+            })
+
+        })
+    })
 })
