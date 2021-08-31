@@ -184,7 +184,7 @@ describe('connectSlot', () => {
                 )
                 let localCalled = false
                 broadcastBool.on(_b => { localCalled = true })
-                broadcastBool(true)
+                await broadcastBool(true)
 
                 // We should have called the trigger
                 expect(localCalled).toEqual(true)
