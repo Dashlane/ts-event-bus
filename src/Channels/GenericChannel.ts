@@ -22,7 +22,7 @@ export abstract class GenericChannel implements Channel {
      * Allows to automatically reconnecting the channel when a slot is triggered but the connection is interrupted
      * Override this method to enable it
      */
-    public autoReconnect(): void {}
+    public autoReconnect(): void { }
 
     public onData(cb: OnMessageCallback): void {
         if (this._onMessageCallbacks.indexOf(cb) === -1) {
