@@ -8,9 +8,11 @@ interface SlotConfig {
     // This option will prevent the slot from buffering the
     // requests if no remote handlers are set for some transports.
     noBuffer?: boolean
+    // This option will allow the transport to auto reconnect a disconnected channel
+    autoReconnect?: boolean
 }
 
-export const defaultSlotConfig = { noBuffer: false }
+export const defaultSlotConfig = { noBuffer: false, autoReconnect: true }
 
 const getNotConnectedSlot = (config: SlotConfig): Slot<any, any> =>
     Object.assign(
@@ -220,9 +222,39 @@ export function connectSlot<T = void, T2 = void>(
         const data: any = paramUsed ? secondArg : firstArg
         const param: string = paramUsed ? firstArg : DEFAULT_PARAM
 
-        if (config.noBuffer || transports.length === 0) {
+        // Called when all transports are ready:
+        // 1. When only the LOCAL_TRANSPORT exists
+        // 2. With noBuffer option and all transport channels are connected
+        // 3. Without noBuffer option and all transport channels are connected and handler registered
+        const callHandlersWithParameters = () => {
             const allParamHandlers = getParamHandlers(param, handlers)
             return callHandlers(data, allParamHandlers)
+        }
+
+        // In this case: only the LOCAL_TRANSPORT handler is defined,
+        // we don't need to check any connection or buffering status
+        if (transports.length === 0) {
+            return callHandlersWithParameters()
+        }
+
+        // Autoreconnect disconnected transports
+        // The transport's handler will be called when the remote one will be registered
+        // (default connect and registration flow with awaitHandlerRegistration)
+        const transportConnectionPromises: Array<Promise<void>> = []
+        if (config.autoReconnect) {
+            transports.forEach((_t) => {
+                // Connection status is handle into autoReconnect method
+                transportConnectionPromises.push(_t.autoReconnect())
+            })
+        }
+
+        // In case of noBuffer config we wait all connections are established before calling the handlers
+        // NOTE: there is a conceptual issue here, as all resolved response from all transports are expected
+        // if one transport failed, the trigger initiator won't receive an answer
+        if (config.noBuffer) {
+            return Promise.all(transportConnectionPromises).then(() => {
+                return callHandlersWithParameters()
+            })
         }
 
         else {
@@ -240,8 +272,7 @@ export function connectSlot<T = void, T2 = void>(
             )
 
             return Promise.all(transportPromises).then(() => {
-                const allParamHandlers = getParamHandlers(param, handlers)
-                return callHandlers(data, allParamHandlers)
+                return callHandlersWithParameters()
             })
         }
     }
