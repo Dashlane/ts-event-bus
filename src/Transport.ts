@@ -364,4 +364,35 @@ export class Transport {
             }
         }
     }
+
+    /**
+     * Allows to know the transport status and to perform a reconnection
+     *
+     * @returns {boolean} Transport's channel connection status, true if disconnected, otherwise false
+     */
+    public isDisconnected(): boolean {
+        return !this._channelReady
+    }
+
+    /**
+     * Auto-reconnect the channel
+     * see Slot.trigger function for usage
+     *
+     * @returns {Promise} A promise resolving when the connection is established
+     */
+    public autoReconnect(): Promise<any> {
+        if (this.isDisconnected()) {
+            const promise = new Promise<void>((resolve) => {
+                this._channel.onConnect(() => {
+                    return resolve()
+                })
+            })
+            this._channel.autoReconnect()
+
+            return promise
+        }
+        else {
+            return Promise.resolve()
+        }
+    }
 }

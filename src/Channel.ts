@@ -4,6 +4,7 @@ export type OnMessageCallback = (message: {}) => void
 
 export interface Channel {
     timeout: number
+    autoReconnect: () => void
     send: (message: TransportMessage) => void
     onData: (cb: OnMessageCallback) => void
     onConnect: (cb: () => void) => void
