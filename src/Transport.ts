@@ -380,8 +380,8 @@ export class Transport {
      *
      * @returns {Promise} A promise resolving when the connection is established
      */
-    public autoReconnect(): Promise<any> {
-        if (this.isDisconnected()) {
+    public autoReconnect(): Promise<void> {
+        if (this.isDisconnected() && this._channel.autoReconnect) {
             const promise = new Promise<void>((resolve) => {
                 this._channel.onConnect(() => {
                     return resolve()
@@ -391,8 +391,7 @@ export class Transport {
 
             return promise
         }
-        else {
-            return Promise.resolve()
-        }
+
+        return Promise.resolve()
     }
 }
