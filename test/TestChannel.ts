@@ -40,9 +40,9 @@ export class TestChannel extends GenericChannel {
     }
 
     public autoReconnect() {
-        this.callConnected();
+        this.callConnected()
 
-        this.autoReconnectSpy();
+        this.autoReconnectSpy()
     }
 
     public send(message: TransportMessage) {
