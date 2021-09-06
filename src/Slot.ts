@@ -244,7 +244,9 @@ export function connectSlot<T = void, T2 = void>(
         if (config.autoReconnect) {
             transports.forEach((_t) => {
                 // Connection status is handle into autoReconnect method
-                transportConnectionPromises.push(_t.autoReconnect())
+                if (_t.isDisconnected()) {
+                    transportConnectionPromises.push(_t.autoReconnect())
+                }
             })
         }
 
@@ -252,9 +254,11 @@ export function connectSlot<T = void, T2 = void>(
         // NOTE: there is a conceptual issue here, as all resolved response from all transports are expected
         // if one transport failed, the trigger initiator won't receive an answer
         if (config.noBuffer) {
-            return Promise.all(transportConnectionPromises).then(() => {
-                return callHandlersWithParameters()
-            })
+            return transportConnectionPromises.length ?
+                Promise.all(transportConnectionPromises).then(() => {
+                    return callHandlersWithParameters()
+                })
+                : callHandlersWithParameters()
         }
 
         else {
