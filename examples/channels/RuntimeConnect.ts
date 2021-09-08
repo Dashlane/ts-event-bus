@@ -50,16 +50,14 @@ export class RuntimeConnect extends GenericChannel {
      * connection status when initiating a connection
      */
     private setup(portName: PortNames) {
-        if (self.chrome) {
-            this.port = chrome.runtime.connect({ name: portName });
-            this.port.onMessage.addListener((message: TransportMessage) =>
-                this._messageReceived(message)
-            );
-            this.port.onDisconnect.addListener(() => {
-                this.port = undefined;
-                this._disconnected();
-            });
-            this._connected();
-        }
+        this.port = chrome.runtime.connect({ name: portName });
+        this.port.onMessage.addListener((message: TransportMessage) =>
+            this._messageReceived(message)
+        );
+        this.port.onDisconnect.addListener(() => {
+            this.port = undefined;
+            this._disconnected();
+        });
+        this._connected();
     }
 }
