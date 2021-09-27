@@ -36,7 +36,6 @@
     "format": "tsfmt -r",
     "prepublishOnly": "run-s validate build"
   },
-  "dependencies": {},
   "devDependencies": {
     "@babel/cli": "^7.12.10",
     "@babel/core": "^7.12.10",
