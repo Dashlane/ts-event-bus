@@ -1,6 +1,6 @@
 import * as WebSocket from 'ws'
 import { Server as WebSocketServer } from 'ws'
-import { GenericChannel } from './../../src/Channel'
+import { GenericChannel } from './../../src/Channels/GenericChannel'
 
 export class WebSocketClientChannel extends GenericChannel {
 

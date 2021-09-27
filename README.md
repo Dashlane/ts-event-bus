@@ -188,6 +188,20 @@ const MyEvents = {
 };
 ```
 
+### Auto-reconnection
+
+In order to re-establish a lost connection when triggering an event a `Channel`
+needs to implement the `autoReconnect` method.
+See example: [RuntimeConnect](./examples/channels/RuntimeConnect.ts)
+It's also possible to fine tune and deactivate this feature on a per-slot basis :
+
+```typescript
+const MyEvents = {
+  willAutoReconnect: slot<string>(),
+  wontNotAutoReconnect: slot<string>({ autoReconnect: false }),
+};
+```
+
 ### Syntactic sugar
 
 You can combine events from different sources.

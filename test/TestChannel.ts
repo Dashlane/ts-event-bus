@@ -7,6 +7,8 @@ export class TestChannel extends GenericChannel {
 
     public sendSpy = jest.fn()
 
+    public autoReconnectSpy = jest.fn()
+
     constructor() {
         super()
     }
@@ -35,6 +37,12 @@ export class TestChannel extends GenericChannel {
 
     public callError() {
         this._error(new Error('LOLOL'))
+    }
+
+    public autoReconnect() {
+        this.callConnected()
+
+        this.autoReconnectSpy()
     }
 
     public send(message: TransportMessage) {
