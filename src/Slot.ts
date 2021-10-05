@@ -10,6 +10,10 @@ interface SlotConfig {
     noBuffer?: boolean
     // This option will allow the transport to auto reconnect a disconnected channel
     autoReconnect?: boolean
+    // Allow disabling local transport. If using a channel that just re-routes
+    // messages to the same eventBus/Slot instance, having a local transport
+    // results on local handlers being called twice per event.
+    disableLocalTransport?: boolean
 }
 
 export const defaultSlotConfig = { noBuffer: false, autoReconnect: true }
@@ -111,10 +115,12 @@ export function connectSlot<T = void, T2 = void>(
      * ========================
      */
 
+    const baseTransport: Handlers = config.disableLocalTransport ? {} : { [LOCAL_TRANSPORT]: {} }
+
     // These will be all the handlers for this slot, for each transport, for each param
     const handlers: Handlers = transports.reduce(
         (acc, _t, ix) => ({ ...acc, [ix]: {} }),
-        { [LOCAL_TRANSPORT]: {} }
+        baseTransport
     )
 
     // For each transport we create a Promise that will be fulfilled only
@@ -346,8 +352,10 @@ export function connectSlot<T = void, T2 = void>(
         transports.forEach(t => t.registerHandler(slotName, param, handler))
 
         // Store this handler
-        handlers[LOCAL_TRANSPORT][param] =
-            (handlers[LOCAL_TRANSPORT][param] || []).concat(handler)
+        if (handlers[LOCAL_TRANSPORT]) {
+            handlers[LOCAL_TRANSPORT][param] =
+                (handlers[LOCAL_TRANSPORT][param] || []).concat(handler)
+        }
 
         // Call lazy connect callbacks if there is at least one handler
         const paramHandlers = getParamHandlers(param, handlers)
@@ -359,10 +367,11 @@ export function connectSlot<T = void, T2 = void>(
             // Unregister remote handler with all of our remote transports
             transports.forEach(t => t.unregisterHandler(slotName, param, handler))
 
-            const localParamHandlers = handlers[LOCAL_TRANSPORT][param] || []
-            const ix = localParamHandlers.indexOf(handler)
-            if (ix !== -1) handlers[LOCAL_TRANSPORT][param].splice(ix, 1)
-
+            if (handlers[LOCAL_TRANSPORT]) {
+                const localParamHandlers = handlers[LOCAL_TRANSPORT][param] || []
+                const ix = localParamHandlers.indexOf(handler)
+                if (ix !== -1) handlers[LOCAL_TRANSPORT][param].splice(ix, 1)
+            }
             // Call lazy disconnect callbacks if there are no handlers anymore
             const paramHandlers = getParamHandlers(param, handlers)
             if (paramHandlers.length === 0) callLazyDisonnectCallbacks(param)
