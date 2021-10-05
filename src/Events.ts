@@ -34,13 +34,13 @@ export function combineEvents<
     return Object.assign({}, ...args)
 }
 
-export function createEventBus<C extends EventDeclaration>(args: { events: C, channels?: Channel[] }): C {
+export function createEventBus<C extends EventDeclaration>(args: { events: C, channels?: Channel[], config?: { disableLocalTransport?: boolean } }): C {
     const transports = (args.channels || []).map(c => new Transport(c))
 
     const eventBus: Partial<C> = {}
     for (const event in args.events) {
         if (args.events.hasOwnProperty(event)) {
-            eventBus[event] = (connectSlot(event, transports, args.events[event].config) as C[Extract<keyof C, string>])
+            eventBus[event] = (connectSlot(event, transports, Object.assign((args.config || {}), args.events[event].config)) as C[Extract<keyof C, string>])
         }
     }
 
