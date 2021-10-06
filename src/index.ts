@@ -1,4 +1,4 @@
-export { slot, Slot } from './Slot'
+export { slot, Slot, Unsubscribe } from './Slot'
 export { EventDeclaration, combineEvents, createEventBus } from './Events'
 export { Channel } from './Channel'
 export { GenericChannel } from './Channels/GenericChannel'
