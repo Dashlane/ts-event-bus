@@ -36,6 +36,17 @@ export function combineEvents<
 
 export function createEventBus<C extends EventDeclaration>(args: { events: C, channels?: Channel[] }): C {
     const transports = (args.channels || []).map(c => new Transport(c))
+export function omitEvents<
+    Events extends EventDeclaration,
+    OmittedEvents extends keyof Events
+>(events: Events, omittedEvents: OmittedEvents[]): Omit<Events, OmittedEvents> {
+    return Object.keys(events).reduce((acc, event) => {
+        if (!omittedEvents.includes(event as OmittedEvents)) {
+            acc[event as keyof Events] = events[event]
+        }
+        return acc
+    }, {} as any)
+}
 
     const eventBus: Partial<C> = {}
     for (const event in args.events) {

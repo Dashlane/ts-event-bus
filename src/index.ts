@@ -1,5 +1,10 @@
 export { slot, Slot } from './Slot'
-export { EventDeclaration, combineEvents, createEventBus } from './Events'
+export {
+    EventDeclaration,
+    combineEvents,
+    createEventBus,
+    omitEvents
+} from './Events'
 export { Channel } from './Channel'
 export { GenericChannel } from './Channels/GenericChannel'
 export { ChunkedChannel } from './Channels/ChunkedChannel'
