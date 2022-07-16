@@ -34,8 +34,6 @@ export function combineEvents<
     return Object.assign({}, ...args)
 }
 
-export function createEventBus<C extends EventDeclaration>(args: { events: C, channels?: Channel[] }): C {
-    const transports = (args.channels || []).map(c => new Transport(c))
 export function omitEvents<
     Events extends EventDeclaration,
     OmittedEvents extends keyof Events
@@ -48,10 +46,27 @@ export function omitEvents<
     }, {} as any)
 }
 
+export function createEventBus<C extends EventDeclaration>(args: {
+    events: C
+    channels?: Channel[]
+    blackList?: Array<keyof C>
+}): C {
+    const filteredEventList = args.blackList
+        ? Object.keys(omitEvents(args.events, args.blackList))
+        : undefined
+
+    const transports = (args.channels || []).map(
+        (c) => new Transport(c, filteredEventList)
+    )
+
     const eventBus: Partial<C> = {}
     for (const event in args.events) {
         if (args.events.hasOwnProperty(event)) {
-            eventBus[event] = (connectSlot(event, transports, args.events[event].config) as C[Extract<keyof C, string>])
+            eventBus[event] = connectSlot(
+                event,
+                transports,
+                args.events[event].config
+            ) as C[Extract<keyof C, string>]
         }
     }
 
