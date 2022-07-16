@@ -165,23 +165,34 @@ export function connectSlot<T = void, T2 = void>(
 
     // Signal to all transports that we will accept handlers for this slotName
     transports.forEach((transport, transportKey) => {
-
         const remoteHandlerRegistered = (
             param = DEFAULT_PARAM,
             handler: Handler<any, any>
         ) => {
+            // If the remote end of the communication channel had blacklisted an
+            // event but is now trying to register a handler. We ignore it and
+            // consider the blacklist to be the source of truth
+            if (!remoteHandlersConnected[transportKey]) {
+                return
+            }
+
             // Store handler
             const paramHandlers = handlers[transportKey][param] || []
             handlers[transportKey][param] = paramHandlers.concat(handler)
 
             // Call lazy callbacks if needed
-            if (getParamHandlers(param, handlers).length === 1) callLazyConnectCallbacks(param)
+            if (getParamHandlers(param, handlers).length === 1) {
+                callLazyConnectCallbacks(param)
+            }
 
             // Release potential buffered events
             if (!remoteHandlersConnected[transportKey][param]) {
                 awaitHandlerRegistration(String(transportKey), param)
             }
 
+            // call onRegister callback on slot for each transport. It will
+            // release the event once triggered. If one is not registered then
+            // event will not be sent.
             remoteHandlersConnected[transportKey][param].onRegister()
         }
 
@@ -191,13 +202,50 @@ export function connectSlot<T = void, T2 = void>(
         ) => {
             const paramHandlers = handlers[transportKey][param] || []
             const handlerIndex = paramHandlers.indexOf(handler)
-            if (handlerIndex > -1) handlers[transportKey][param].splice(handlerIndex, 1)
-            if (getParamHandlers(param, handlers).length === 0) callLazyDisonnectCallbacks(param)
-            awaitHandlerRegistration(String(transportKey), param)
+
+            if (handlerIndex > -1)
+                handlers[transportKey][param].splice(handlerIndex, 1)
+
+            if (getParamHandlers(param, handlers).length === 0)
+                callLazyDisonnectCallbacks(param)
+
+            if (remoteHandlersConnected[transportKey])
+                awaitHandlerRegistration(String(transportKey), param)
+
         }
 
-        transport.addRemoteHandlerRegistrationCallback(slotName, remoteHandlerRegistered)
-        transport.addRemoteHandlerUnregistrationCallback(slotName, remoteHandlerUnregistered)
+        const remoteEventListChangedListener = () => {
+            // Because the remote end communicated a blacklist of event it does
+            // not want to listen, and because the local end has registered a
+            // handler for the remote end for this blacklisted events. The local
+            // ends need to:
+            //    1 - resolve the onRegister promise
+            //    2 - remove the useless handler from the remote handlers list
+            if (remoteHandlersConnected[transportKey]) {
+                Object.keys(remoteHandlersConnected[transportKey]).forEach(
+                    (param) => {
+                        remoteHandlersConnected[transportKey][
+                            param
+                        ].onRegister()
+                    }
+                )
+            }
+            delete remoteHandlersConnected[transportKey]
+        }
+
+        transport.addRemoteHandlerRegistrationCallback(
+            slotName,
+            remoteHandlerRegistered
+        )
+        transport.addRemoteHandlerUnregistrationCallback(
+            slotName,
+            remoteHandlerUnregistered
+        )
+
+        transport.addRemoteEventListChangedListener(
+            slotName,
+            remoteEventListChangedListener
+        )
     })
 
     /*
@@ -255,11 +303,12 @@ export function connectSlot<T = void, T2 = void>(
             return Promise.all(transportConnectionPromises).then(() => {
                 return callHandlersWithParameters()
             })
-        }
-
-        else {
+        } else {
             transports.forEach((_t, transportKey) => {
-                if (!remoteHandlersConnected[transportKey][param]) {
+                if (
+                    remoteHandlersConnected[transportKey] &&
+                    !remoteHandlersConnected[transportKey][param]
+                ) {
                     awaitHandlerRegistration(String(transportKey), param)
                 }
             })
@@ -267,8 +316,12 @@ export function connectSlot<T = void, T2 = void>(
             const transportPromises: Promise<void>[] = transports.reduce(
                 (acc, _t, transportKey) => [
                     ...acc,
-                    remoteHandlersConnected[transportKey][param].registered
-                ], []
+                    ...((remoteHandlersConnected[transportKey] && [
+                        remoteHandlersConnected[transportKey][param].registered
+                    ]) ??
+                        [])
+                ],
+                []
             )
 
             return Promise.all(transportPromises).then(() => {

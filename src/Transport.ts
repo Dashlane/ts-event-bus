@@ -6,7 +6,8 @@ import {
     TransportRegistrationMessage,
     TransportUnregistrationMessage,
     TransportResponse,
-    TransportRequest
+    TransportRequest,
+    TransportEventListMessage
 } from './Message'
 
 let _ID = 0
@@ -75,13 +76,20 @@ export class Transport {
         { [slotName: string]: RemoteHandlerCallback } = {}
 
     /**
+     * Callbacks provided by each slot allowing to remove blacklisted events
+     * declaration from the remote handlers.
+     */
+    private _remoteEventListChangedCallbacks:
+        { [slotName: string]: () => void } = {}
+
+    /**
      * Requests that have been sent to the far end, but have yet to be fulfilled
      */
     private _pendingRequests: { [param: string]: PendingRequests } = {}
 
     private _channelReady = false
 
-    constructor(private _channel: Channel) {
+    constructor(private _channel: Channel, event_list?: string[]) {
         this._channel.onData((message: TransportMessage) => {
             switch (message.type) {
                 case 'request':
@@ -94,6 +102,8 @@ export class Transport {
                     return this._unregisterRemoteHandler(message)
                 case 'error':
                     return this._errorReceived(message)
+                case 'event_list':
+                    return this._remoteEventListReceived(message)
                 default:
                     assertNever(message)
             }
@@ -107,6 +117,18 @@ export class Transport {
                     this._channel.send(msg)
                 })
             })
+
+            // Also send the list of events this end is interested in so the far
+            // end can know when to wait for this end to be ready when triggering
+            // a specific slot, and when NOT to wait.
+            // This is necessary only when some events have been blacklisted
+            // when calling createEventBus
+            if (event_list) {
+                this._channel.send({
+                    type: "event_list",
+                    eventList: event_list
+                })
+            }
         })
         this._channel.onDisconnect(() => {
             this._channelReady = false
@@ -120,6 +142,24 @@ export class Transport {
         // (their integrity cannot be guaranteed since onError does not link
         // the error to a requestId)
         this._channel.onError(e => this._rejectAllPendingRequests(e))
+    }
+
+    /**
+    * This event is triggered when events have been blacklisted from the far
+    * end. It will call onRegister on blacklisted handlers to fake their
+    * registration so this end doesn't wait on the far end have registered them
+    * to be able to trigger them.
+    */
+    private _remoteEventListReceived({
+        eventList
+    }: TransportEventListMessage): void {
+        Object.keys(this._remoteEventListChangedCallbacks).forEach(
+            (slotName) => {
+                if (!eventList.includes(slotName)) {
+                    this._remoteEventListChangedCallbacks[slotName]()
+                }
+            }
+        )
     }
 
     /**
@@ -295,6 +335,16 @@ export class Transport {
     ): void {
         if (!this._remoteHandlerDeletionCallbacks[slotName]) {
             this._remoteHandlerDeletionCallbacks[slotName] = removeHandler
+        }
+    }
+
+    public addRemoteEventListChangedListener(
+        slotName: string,
+        eventListChangedListener: () => void
+    ): void {
+        if (!this._remoteEventListChangedCallbacks[slotName]) {
+            this._remoteEventListChangedCallbacks[slotName] =
+                eventListChangedListener
         }
     }
 
