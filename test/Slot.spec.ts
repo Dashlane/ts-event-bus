@@ -30,9 +30,7 @@ describe('slot', () => {
 })
 
 describe('connectSlot', () => {
-
     describe('without parameter', () => {
-
         describe('trigger', () => {
             it('should use default parameter', async () => {
                 const numberToString = connectSlot<number, string>('numberToString', [])
@@ -55,7 +53,6 @@ describe('connectSlot', () => {
     })
 
     describe('with no transports', () => {
-
         it('should call a single local handler registered for a parameter', async () => {
             const numberToString = connectSlot<number, string>('numberToString', [])
             numberToString.on('a', num => `a${num.toString()}`)
@@ -130,7 +127,6 @@ describe('connectSlot', () => {
     })
 
     describe('with local and remote handlers', () => {
-
         it('should call both local handlers and remote handlers', async () => {
             const { channel, transport } = makeTestTransport()
             const broadcastBool = connectSlot<boolean>('broadcastBool', [transport])
@@ -140,6 +136,7 @@ describe('connectSlot', () => {
 
             // Handlers should not be called until a remote handler is registered
             await Promise.resolve()
+
             expect(localCalled).toEqual(false)
 
             channel.fakeReceive({
@@ -318,6 +315,173 @@ describe('connectSlot', () => {
                 broadcastBool.lazy(connect, () => { })
 
                 expect(connect).toHaveBeenCalledWith(param, 0, [param])
+            })
+        })
+    })
+
+    describe('with two remote endpoints: A and B', () => {
+        describe('no event list sent by any endpoints', () => {
+            it('should wait for all remote endpoints to have signaled registration before sending the event', async () => {
+                const { channel: channelA, transport: transportA } =
+                    makeTestTransport()
+                const { channel: channelB, transport: transportB } =
+                    makeTestTransport()
+                const broadcastBool = connectSlot<boolean>('broadcastBool', [
+                    transportA,
+                    transportB,
+                ])
+
+                broadcastBool(true)
+
+                await new Promise((resolve) => setTimeout(resolve, 0))
+
+                expect(channelA.sendSpy.mock.calls.length).toBe(0)
+                expect(channelB.sendSpy.mock.calls.length).toBe(0)
+
+                // Endpoint A signals registration
+                channelA.fakeReceive({
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'handler_registered',
+                })
+
+                await new Promise((resolve) => setTimeout(resolve, 0))
+
+                expect(channelA.sendSpy.mock.calls.length).toBe(0)
+                expect(channelB.sendSpy.mock.calls.length).toBe(0)
+
+                // Endpoint B signals registration
+                channelB.fakeReceive({
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'handler_registered',
+                })
+                await new Promise((resolve) => setTimeout(resolve, 0))
+
+                expect(channelA.sendSpy.mock.calls.length).toBe(1)
+                expect(channelB.sendSpy.mock.calls.length).toBe(1)
+
+                const messageToA =
+                    channelA.sendSpy.mock.calls[
+                        channelA.sendSpy.mock.calls.length - 1
+                    ][0]
+                expect(messageToA).toMatchObject({
+                    data: true,
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'request',
+                })
+
+                const messageToB =
+                    channelB.sendSpy.mock.calls[
+                        channelB.sendSpy.mock.calls.length - 1
+                    ][0]
+                expect(messageToB).toMatchObject({
+                    data: true,
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'request',
+                })
+            })
+        })
+
+        describe('an empty event is list sent to one endpoint (A)', () => {
+            it('should NOT wait for remote endpoint A but SHOULD wait on remote endpoint B to have signaled registration before sending the event', async () => {
+                const { channel: channelA, transport: transportA } =
+                    makeTestTransport()
+                const { channel: channelB, transport: transportB } =
+                    makeTestTransport()
+
+                const broadcastBool = connectSlot<boolean>('broadcastBool', [
+                    transportA,
+                    transportB,
+                ])
+
+                // Receiving an empty list is the same as blacklisting all events
+                channelA.fakeReceive({
+                    type: 'event_list',
+                    eventList: [],
+                })
+
+                // This will be called only when B is ready we don't care about
+                // A as his event white list is empty
+                let called = false
+                broadcastBool.on((_b) => {
+                    called = true
+                })
+
+                broadcastBool(true)
+
+                await new Promise((resolve) => setTimeout(resolve, 0))
+
+                // Should not fire as there B is not registered
+                expect(called).toBe(false)
+
+                // Endpoint B signals registration
+                channelB.fakeReceive({
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'handler_registered',
+                })
+                await new Promise((resolve) => setTimeout(resolve, 0))
+
+                expect(called).toBe(true)
+            })
+        })
+
+        describe('an event list is sent to one endpoint (A)', () => {
+            // This is the same test as before. But this time the because the
+            // event IS in the white list, we need to wait for A AND B to be
+            // registered to trigger the event
+            it('should wait for remote endpoint A and remote endpoint B to have signaled registration before sending the event', async () => {
+                const { channel: channelA, transport: transportA } =
+                    makeTestTransport()
+                const { channel: channelB, transport: transportB } =
+                    makeTestTransport()
+
+                const broadcastBool = connectSlot<boolean>('broadcastBool', [
+                    transportA,
+                    transportB,
+                ])
+
+                // This will be called only when A and B are ready
+                let called = false
+                broadcastBool.on((_b) => {
+                    called = true
+                })
+
+                channelA.fakeReceive({
+                    type: 'event_list',
+                    eventList: ['broadcastBool'],
+                })
+
+                broadcastBool(true)
+
+                await new Promise((resolve) => setTimeout(resolve, 0))
+
+                // Should not fire as none of A and B are registered
+                expect(called).toBe(false)
+
+                // Endpoint A signals registration
+                channelA.fakeReceive({
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'handler_registered',
+                })
+
+                // Should not fire as there B is not registered
+                expect(called).toBe(false)
+
+                // Endpoint B signals registration
+                channelB.fakeReceive({
+                    param: DEFAULT_PARAM,
+                    slotName: 'broadcastBool',
+                    type: 'handler_registered',
+                })
+                await new Promise((resolve) => setTimeout(resolve, 0))
+
+                // Should fire as A and B are registered
+                expect(called).toBe(true)
             })
         })
     })
