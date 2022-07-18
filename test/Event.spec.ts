@@ -1,5 +1,5 @@
 import { slot } from './../src/Slot'
-import { combineEvents, createEventBus } from './../src/Events'
+import { combineEvents, createEventBus, omitEvents } from './../src/Events'
 import { TestChannel } from './TestChannel'
 import { DEFAULT_PARAM } from './../src/Constants'
 
@@ -39,6 +39,32 @@ describe('combineEvents()', () => {
         expect(failing).toThrowError(/duplicate slots/)
     })
 
+})
+
+describe('omitEvent()', () => {
+    it('should omit events from the the list', () => {
+        const events = {
+            hello: slot<{ name: string }>(),
+            how: slot<{ mode: 'simple' | 'advanced' }>(),
+            are: slot<{ tense: number }>(),
+            you: slot<{ reflective: boolean }>(),
+        }
+
+        const filteredList = omitEvents(events, ['hello'])
+        expect(Object.keys(filteredList)).toEqual(['how', 'are', 'you'])
+    })
+
+    it('should return the list of all event when omitted list is empty', () => {
+        const events = {
+            hello: slot<{ name: string }>(),
+            how: slot<{ mode: 'simple' | 'advanced' }>(),
+            are: slot<{ tense: number }>(),
+            you: slot<{ reflective: boolean }>(),
+        }
+
+        const filteredList = omitEvents(events, [])
+        expect(Object.keys(filteredList)).toEqual(Object.keys(events))
+    })
 })
 
 describe('createEventBus()', () => {
