@@ -41,36 +41,11 @@ describe('combineEvents()', () => {
 
 })
 
-describe('omitEvent()', () => {
-    it('should omit events from the the list', () => {
-        const events = {
-            hello: slot<{ name: string }>(),
-            how: slot<{ mode: 'simple' | 'advanced' }>(),
-            are: slot<{ tense: number }>(),
-            you: slot<{ reflective: boolean }>(),
-        }
-
-        const filteredList = omitEvents(events, ['hello'])
-        expect(Object.keys(filteredList)).toEqual(['how', 'are', 'you'])
-    })
-
-    it('should return the list of all event when omitted list is empty', () => {
-        const events = {
-            hello: slot<{ name: string }>(),
-            how: slot<{ mode: 'simple' | 'advanced' }>(),
-            are: slot<{ tense: number }>(),
-            you: slot<{ reflective: boolean }>(),
-        }
-
-        const filteredList = omitEvents(events, [])
-        expect(Object.keys(filteredList)).toEqual(Object.keys(events))
-    })
-})
-
 describe('createEventBus()', () => {
 
     const events = {
-        numberToString: slot<number, string>()
+        numberToString: slot<number, string>(),
+        eventToIgnore: slot<void, void>()
     }
 
     const param = DEFAULT_PARAM
@@ -126,5 +101,25 @@ describe('createEventBus()', () => {
             id: '0',
             data: '5'
         })
+    })
+
+    describe('when a ignored list is passed to createEventBus()', () => {
+      it('should not connect the ignored slot and should return a filtered eventBus', () => {
+        const channel = new TestChannel()
+        const eventBus = createEventBus({
+            events,
+            channels: [channel],
+            ignoredEvents: ['eventToIgnore']
+        })
+        channel.callConnected()
+        const isIncluded = Object.keys(eventBus).includes('eventToIgnore')
+        expect(isIncluded).toBe(false)
+        // An event_list message should have been received with the list of
+        // ignoredEvents
+        expect(channel.sendSpy).toHaveBeenCalledWith({
+            type: 'event_list',
+            ignoredEvents: ['eventToIgnore']
+        })
+      })
     })
 })

@@ -2,8 +2,7 @@ export { slot, Slot } from './Slot'
 export {
     EventDeclaration,
     combineEvents,
-    createEventBus,
-    omitEvents
+    createEventBus
 } from './Events'
 export { Channel } from './Channel'
 export { GenericChannel } from './Channels/GenericChannel'

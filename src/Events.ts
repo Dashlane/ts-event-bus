@@ -34,23 +34,14 @@ export function combineEvents<
     return Object.assign({}, ...args)
 }
 
-export function omitEvents<
-    Events extends EventDeclaration,
-    OmittedEvents extends keyof Events
->(events: Events, omittedEvents: OmittedEvents[]): Omit<Events, OmittedEvents> {
-    return Object.keys(events).reduce((acc, event) => {
-        if (!omittedEvents.includes(event as OmittedEvents)) {
-            acc[event as keyof Events] = events[event]
-        }
-        return acc
-    }, {} as any)
-}
-
-export function createEventBus<C extends EventDeclaration>(args: {
-    events: C
-    channels?: Channel[]
-    ignoredEvents?: Array<keyof C>
-}): C {
+export function createEventBus<
+    C extends EventDeclaration,
+    T extends Array<keyof C>
+>(args: {
+    events: C;
+    channels?: Channel[];
+    ignoredEvents?: T;
+}): Omit<C, T[number]> {
 
     const transports = (args.channels || []).map(
         (c) => new Transport(c, (args.ignoredEvents as string[]))
@@ -58,7 +49,11 @@ export function createEventBus<C extends EventDeclaration>(args: {
 
     const eventBus: Partial<C> = {}
     for (const event in args.events) {
-        if (args.events.hasOwnProperty(event)) {
+        if (
+            args.events.hasOwnProperty(event) &&
+            (!args.ignoredEvents ||
+                (args.ignoredEvents && !args.ignoredEvents.includes(event)))
+        ) {
             eventBus[event] = connectSlot(
                 event,
                 transports,
@@ -67,5 +62,5 @@ export function createEventBus<C extends EventDeclaration>(args: {
         }
     }
 
-    return eventBus as C
+    return eventBus as Omit<C, T[number]>
 }
