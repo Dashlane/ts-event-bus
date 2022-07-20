@@ -89,7 +89,7 @@ export class Transport {
 
     private _channelReady = false
 
-    constructor(private _channel: Channel, event_list?: string[]) {
+    constructor(private _channel: Channel, blackList?: string[]) {
         this._channel.onData((message: TransportMessage) => {
             switch (message.type) {
                 case 'request':
@@ -123,10 +123,10 @@ export class Transport {
             // a specific slot, and when NOT to wait.
             // This is necessary only when some events have been blacklisted
             // when calling createEventBus
-            if (event_list) {
+            if (blackList) {
                 this._channel.send({
                     type: "event_list",
-                    eventList: event_list
+                    blackList
                 })
             }
         })
@@ -151,11 +151,11 @@ export class Transport {
     * to be able to trigger them.
     */
     private _remoteEventListReceived({
-        eventList
+        blackList
     }: TransportEventListMessage): void {
         Object.keys(this._remoteEventListChangedCallbacks).forEach(
             (slotName) => {
-                if (!eventList.includes(slotName)) {
+                if (blackList.includes(slotName)) {
                     this._remoteEventListChangedCallbacks[slotName]()
                 }
             }

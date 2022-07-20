@@ -51,12 +51,9 @@ export function createEventBus<C extends EventDeclaration>(args: {
     channels?: Channel[]
     blackList?: Array<keyof C>
 }): C {
-    const filteredEventList = args.blackList
-        ? Object.keys(omitEvents(args.events, args.blackList))
-        : undefined
 
     const transports = (args.channels || []).map(
-        (c) => new Transport(c, filteredEventList)
+        (c) => new Transport(c, (args.blackList as string[]))
     )
 
     const eventBus: Partial<C> = {}

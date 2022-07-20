@@ -385,7 +385,7 @@ describe('connectSlot', () => {
             })
         })
 
-        describe('an empty event is list sent to one endpoint (A)', () => {
+        describe('a blacklist is sent to one endpoint (A)', () => {
             it('should NOT wait for remote endpoint A but SHOULD wait on remote endpoint B to have signaled registration before sending the event', async () => {
                 const { channel: channelA, transport: transportA } =
                     makeTestTransport()
@@ -397,10 +397,10 @@ describe('connectSlot', () => {
                     transportB,
                 ])
 
-                // Receiving an empty list is the same as blacklisting all events
+                // Receiving a black list of events
                 channelA.fakeReceive({
                     type: 'event_list',
-                    eventList: [],
+                    blackList: ['broadcastBool'],
                 })
 
                 // This will be called only when B is ready we don't care about
@@ -429,10 +429,10 @@ describe('connectSlot', () => {
             })
         })
 
-        describe('an event list is sent to one endpoint (A)', () => {
+        describe('an empty blacklist is sent to one endpoint (A)', () => {
             // This is the same test as before. But this time the because the
-            // event IS in the white list, we need to wait for A AND B to be
-            // registered to trigger the event
+            // blackList is empty, we need to wait for A AND B to be registered
+            // to trigger the event
             it('should wait for remote endpoint A and remote endpoint B to have signaled registration before sending the event', async () => {
                 const { channel: channelA, transport: transportA } =
                     makeTestTransport()
@@ -452,7 +452,7 @@ describe('connectSlot', () => {
 
                 channelA.fakeReceive({
                     type: 'event_list',
-                    eventList: ['broadcastBool'],
+                    blackList: [],
                 })
 
                 broadcastBool(true)
