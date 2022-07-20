@@ -49,11 +49,11 @@ export function omitEvents<
 export function createEventBus<C extends EventDeclaration>(args: {
     events: C
     channels?: Channel[]
-    blackList?: Array<keyof C>
+    ignoredEvents?: Array<keyof C>
 }): C {
 
     const transports = (args.channels || []).map(
-        (c) => new Transport(c, (args.blackList as string[]))
+        (c) => new Transport(c, (args.ignoredEvents as string[]))
     )
 
     const eventBus: Partial<C> = {}

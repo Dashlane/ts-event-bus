@@ -320,7 +320,7 @@ describe('connectSlot', () => {
     })
 
     describe('with two remote endpoints: A and B', () => {
-        describe('no event list sent by any endpoints', () => {
+        describe('no ignoredEvents list sent by any endpoints', () => {
             it('should wait for all remote endpoints to have signaled registration before sending the event', async () => {
                 const { channel: channelA, transport: transportA } =
                     makeTestTransport()
@@ -385,7 +385,7 @@ describe('connectSlot', () => {
             })
         })
 
-        describe('a blacklist is sent to one endpoint (A)', () => {
+        describe('an ignoredEvents list is sent to one endpoint (A)', () => {
             it('should NOT wait for remote endpoint A but SHOULD wait on remote endpoint B to have signaled registration before sending the event', async () => {
                 const { channel: channelA, transport: transportA } =
                     makeTestTransport()
@@ -397,10 +397,10 @@ describe('connectSlot', () => {
                     transportB,
                 ])
 
-                // Receiving a black list of events
+                // Receiving a list of events to ignore
                 channelA.fakeReceive({
                     type: 'event_list',
-                    blackList: ['broadcastBool'],
+                    ignoredEvents: ['broadcastBool'],
                 })
 
                 // This will be called only when B is ready we don't care about
@@ -429,10 +429,10 @@ describe('connectSlot', () => {
             })
         })
 
-        describe('an empty blacklist is sent to one endpoint (A)', () => {
+        describe('an empty ignoredEvents list is sent to one endpoint (A)', () => {
             // This is the same test as before. But this time the because the
-            // blackList is empty, we need to wait for A AND B to be registered
-            // to trigger the event
+            // ignoredEvents list is empty, we need to wait for A AND B to been
+            // registered to trigger the event.
             it('should wait for remote endpoint A and remote endpoint B to have signaled registration before sending the event', async () => {
                 const { channel: channelA, transport: transportA } =
                     makeTestTransport()
@@ -452,7 +452,7 @@ describe('connectSlot', () => {
 
                 channelA.fakeReceive({
                     type: 'event_list',
-                    blackList: [],
+                    ignoredEvents: [],
                 })
 
                 broadcastBool(true)

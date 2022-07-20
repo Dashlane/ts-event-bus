@@ -37,7 +37,7 @@ export type TransportUnregistrationMessage = {
 
 export type TransportEventListMessage = {
     type: 'event_list',
-    blackList: string[]
+    ignoredEvents: string[]
 }
 
 export type TransportMessage =

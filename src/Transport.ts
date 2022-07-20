@@ -79,7 +79,7 @@ export class Transport {
      * Callbacks provided by each slot allowing to remove blacklisted events
      * declaration from the remote handlers.
      */
-    private _remoteEventListChangedCallbacks:
+    private _remoteIgnoredEventsCallbacks:
         { [slotName: string]: () => void } = {}
 
     /**
@@ -89,7 +89,7 @@ export class Transport {
 
     private _channelReady = false
 
-    constructor(private _channel: Channel, blackList?: string[]) {
+    constructor(private _channel: Channel, ignoredEvents?: string[]) {
         this._channel.onData((message: TransportMessage) => {
             switch (message.type) {
                 case 'request':
@@ -103,7 +103,7 @@ export class Transport {
                 case 'error':
                     return this._errorReceived(message)
                 case 'event_list':
-                    return this._remoteEventListReceived(message)
+                    return this._remoteIgnoredEventsReceived(message)
                 default:
                     assertNever(message)
             }
@@ -118,15 +118,14 @@ export class Transport {
                 })
             })
 
-            // Also send the list of events this end is interested in so the far
-            // end can know when to wait for this end to be ready when triggering
-            // a specific slot, and when NOT to wait.
-            // This is necessary only when some events have been blacklisted
-            // when calling createEventBus
-            if (blackList) {
+            // Also send the list of events this end is not interested in so the
+            // far end can know when to wait or not for this end to be ready
+            // when triggering a specific slot. This is necessary only when some
+            // events have been listed as ignored when calling createEventBus
+            if (ignoredEvents) {
                 this._channel.send({
                     type: "event_list",
-                    blackList
+                    ignoredEvents
                 })
             }
         })
@@ -145,18 +144,18 @@ export class Transport {
     }
 
     /**
-    * This event is triggered when events have been blacklisted from the far
-    * end. It will call onRegister on blacklisted handlers to fake their
-    * registration so this end doesn't wait on the far end have registered them
-    * to be able to trigger them.
+    * This event is triggered when events have been listed as ignored by the far
+    * end. It will call onRegister on ignored events' handlers to fake their
+    * registration so this end doesn't wait on the far end to have registered
+    * them to be able to trigger them.
     */
-    private _remoteEventListReceived({
-        blackList
+    private _remoteIgnoredEventsReceived({
+        ignoredEvents
     }: TransportEventListMessage): void {
-        Object.keys(this._remoteEventListChangedCallbacks).forEach(
+        Object.keys(this._remoteIgnoredEventsCallbacks).forEach(
             (slotName) => {
-                if (blackList.includes(slotName)) {
-                    this._remoteEventListChangedCallbacks[slotName]()
+                if (ignoredEvents.includes(slotName)) {
+                    this._remoteIgnoredEventsCallbacks[slotName]()
                 }
             }
         )
@@ -342,8 +341,8 @@ export class Transport {
         slotName: string,
         eventListChangedListener: () => void
     ): void {
-        if (!this._remoteEventListChangedCallbacks[slotName]) {
-            this._remoteEventListChangedCallbacks[slotName] =
+        if (!this._remoteIgnoredEventsCallbacks[slotName]) {
+            this._remoteIgnoredEventsCallbacks[slotName] =
                 eventListChangedListener
         }
     }
