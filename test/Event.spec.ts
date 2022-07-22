@@ -1,5 +1,5 @@
 import { slot } from './../src/Slot'
-import { combineEvents, createEventBus } from './../src/Events'
+import { combineEvents, createEventBus, omitEvents } from './../src/Events'
 import { TestChannel } from './TestChannel'
 import { DEFAULT_PARAM } from './../src/Constants'
 
@@ -44,7 +44,8 @@ describe('combineEvents()', () => {
 describe('createEventBus()', () => {
 
     const events = {
-        numberToString: slot<number, string>()
+        numberToString: slot<number, string>(),
+        eventToIgnore: slot<void, void>()
     }
 
     const param = DEFAULT_PARAM
@@ -100,5 +101,25 @@ describe('createEventBus()', () => {
             id: '0',
             data: '5'
         })
+    })
+
+    describe('when a ignored list is passed to createEventBus()', () => {
+      it('should not connect the ignored slot and should return a filtered eventBus', () => {
+        const channel = new TestChannel()
+        const eventBus = createEventBus({
+            events,
+            channels: [channel],
+            ignoredEvents: ['eventToIgnore']
+        })
+        channel.callConnected()
+        const isIncluded = Object.keys(eventBus).includes('eventToIgnore')
+        expect(isIncluded).toBe(false)
+        // An event_list message should have been received with the list of
+        // ignoredEvents
+        expect(channel.sendSpy).toHaveBeenCalledWith({
+            type: 'event_list',
+            ignoredEvents: ['eventToIgnore']
+        })
+      })
     })
 })

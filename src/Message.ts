@@ -28,17 +28,25 @@ export type TransportRegistrationMessage = {
     slotName: string,
     param: string
 }
+
 export type TransportUnregistrationMessage = {
     type: 'handler_unregistered',
     slotName: string,
     param: string
 }
+
+export type TransportEventListMessage = {
+    type: 'event_list',
+    ignoredEvents: string[]
+}
+
 export type TransportMessage =
     TransportError
     | TransportRegistrationMessage
     | TransportRequest
     | TransportResponse
     | TransportUnregistrationMessage
+    | TransportEventListMessage
 
 export function isTransportMessage(m: { type: string }): m is TransportMessage {
     switch (m.type) {
@@ -47,6 +55,7 @@ export function isTransportMessage(m: { type: string }): m is TransportMessage {
         case 'error':
         case 'handler_unregistered':
         case 'handler_registered':
+        case 'event_list':
             return true
         default:
             return false

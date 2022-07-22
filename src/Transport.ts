@@ -6,7 +6,8 @@ import {
     TransportRegistrationMessage,
     TransportUnregistrationMessage,
     TransportResponse,
-    TransportRequest
+    TransportRequest,
+    TransportEventListMessage
 } from './Message'
 
 let _ID = 0
@@ -75,13 +76,20 @@ export class Transport {
         { [slotName: string]: RemoteHandlerCallback } = {}
 
     /**
+     * Callbacks provided by each slot allowing to remove blacklisted events
+     * declaration from the remote handlers.
+     */
+    private _remoteIgnoredEventsCallbacks:
+        { [slotName: string]: () => void } = {}
+
+    /**
      * Requests that have been sent to the far end, but have yet to be fulfilled
      */
     private _pendingRequests: { [param: string]: PendingRequests } = {}
 
     private _channelReady = false
 
-    constructor(private _channel: Channel) {
+    constructor(private _channel: Channel, ignoredEvents?: string[]) {
         this._channel.onData((message: TransportMessage) => {
             switch (message.type) {
                 case 'request':
@@ -94,6 +102,8 @@ export class Transport {
                     return this._unregisterRemoteHandler(message)
                 case 'error':
                     return this._errorReceived(message)
+                case 'event_list':
+                    return this._remoteIgnoredEventsReceived(message)
                 default:
                     assertNever(message)
             }
@@ -107,6 +117,17 @@ export class Transport {
                     this._channel.send(msg)
                 })
             })
+
+            // Also send the list of events this end is not interested in so the
+            // far end can know when to wait or not for this end to be ready
+            // when triggering a specific slot. This is necessary only when some
+            // events have been listed as ignored when calling createEventBus
+            if (ignoredEvents) {
+                this._channel.send({
+                    type: "event_list",
+                    ignoredEvents
+                })
+            }
         })
         this._channel.onDisconnect(() => {
             this._channelReady = false
@@ -120,6 +141,24 @@ export class Transport {
         // (their integrity cannot be guaranteed since onError does not link
         // the error to a requestId)
         this._channel.onError(e => this._rejectAllPendingRequests(e))
+    }
+
+    /**
+    * This event is triggered when events have been listed as ignored by the far
+    * end. It will call onRegister on ignored events' handlers to fake their
+    * registration so this end doesn't wait on the far end to have registered
+    * them to be able to trigger them.
+    */
+    private _remoteIgnoredEventsReceived({
+        ignoredEvents
+    }: TransportEventListMessage): void {
+        Object.keys(this._remoteIgnoredEventsCallbacks).forEach(
+            (slotName) => {
+                if (ignoredEvents.includes(slotName)) {
+                    this._remoteIgnoredEventsCallbacks[slotName]()
+                }
+            }
+        )
     }
 
     /**
@@ -295,6 +334,16 @@ export class Transport {
     ): void {
         if (!this._remoteHandlerDeletionCallbacks[slotName]) {
             this._remoteHandlerDeletionCallbacks[slotName] = removeHandler
+        }
+    }
+
+    public addRemoteEventListChangedListener(
+        slotName: string,
+        eventListChangedListener: () => void
+    ): void {
+        if (!this._remoteIgnoredEventsCallbacks[slotName]) {
+            this._remoteIgnoredEventsCallbacks[slotName] =
+                eventListChangedListener
         }
     }
 

@@ -34,15 +34,33 @@ export function combineEvents<
     return Object.assign({}, ...args)
 }
 
-export function createEventBus<C extends EventDeclaration>(args: { events: C, channels?: Channel[] }): C {
-    const transports = (args.channels || []).map(c => new Transport(c))
+export function createEventBus<
+    C extends EventDeclaration,
+    T extends Array<keyof C>
+>(args: {
+    events: C;
+    channels?: Channel[];
+    ignoredEvents?: T;
+}): Omit<C, T[number]> {
+
+    const transports = (args.channels || []).map(
+        (c) => new Transport(c, (args.ignoredEvents as string[]))
+    )
 
     const eventBus: Partial<C> = {}
     for (const event in args.events) {
-        if (args.events.hasOwnProperty(event)) {
-            eventBus[event] = (connectSlot(event, transports, args.events[event].config) as C[Extract<keyof C, string>])
+        if (
+            args.events.hasOwnProperty(event) &&
+            (!args.ignoredEvents ||
+                (args.ignoredEvents && !args.ignoredEvents.includes(event)))
+        ) {
+            eventBus[event] = connectSlot(
+                event,
+                transports,
+                args.events[event].config
+            ) as C[Extract<keyof C, string>]
         }
     }
 
-    return eventBus as C
+    return eventBus as Omit<C, T[number]>
 }
