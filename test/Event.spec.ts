@@ -1,5 +1,5 @@
 import { slot } from './../src/Slot'
-import { combineEvents, createEventBus, omitEvents } from './../src/Events'
+import { combineEvents, createEventBus } from './../src/Events'
 import { TestChannel } from './TestChannel'
 import { DEFAULT_PARAM } from './../src/Constants'
 
