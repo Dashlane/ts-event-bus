@@ -36,12 +36,12 @@ export function combineEvents<
 
 export function createEventBus<
     C extends EventDeclaration,
-    T extends Array<keyof C>
+    T extends Array<keyof C> = []
 >(args: {
     events: C;
     channels?: Channel[];
     ignoredEvents?: T;
-}): Omit<C, T[number]> {
+}): T extends [] ? C : Omit<C, T[number]> {
 
     const transports = (args.channels || []).map(
         (c) => new Transport(c, (args.ignoredEvents as string[]))
@@ -62,5 +62,6 @@ export function createEventBus<
         }
     }
 
-    return eventBus as Omit<C, T[number]>
+    return eventBus as T extends [] ? C : Omit<C, T[number]>
 }
+
