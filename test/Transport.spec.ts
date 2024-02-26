@@ -1,6 +1,7 @@
 import { Transport } from './../src/Transport'
 import { TransportMessage } from './../src/Message'
 import { TestChannel } from './TestChannel'
+import { flushPromises } from './testing-utils'
 
 const param = 'param'
 
@@ -89,7 +90,7 @@ describe('Transport', () => {
 
             channel.fakeReceive(request)
 
-            await Promise.resolve() // yield to ts-event-bus internals
+            await flushPromises()
             expect(handler).toHaveBeenCalledWith(request.data)
             expect(channel.sendSpy).toHaveBeenLastCalledWith({
                 slotName,
@@ -141,7 +142,7 @@ describe('Transport', () => {
                 }
             }
             channel.fakeReceive(request)
-            await Promise.resolve() // yield to ts-event-bus internals
+            await flushPromises()
             expect(handler).not.toHaveBeenCalled()
         })
 
