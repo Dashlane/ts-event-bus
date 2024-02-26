@@ -177,23 +177,33 @@ export class Transport {
         // Call local handlers with the request data
         callHandlers(data, handlers)
             // If the resulting promise is fulfilled, send a response to the far end
-            .then(response => this._channel.send({
-                type: 'response',
-                slotName,
-                id,
-                data: response,
-                param
-            }))
+            .then(async (response) => {
+                await this.autoReconnect()
+                if (!this.isDisconnected()) {
+                    this._channel.send({
+                        type: 'response',
+                        slotName,
+                        id,
+                        data: response,
+                        param
+                    })
+                }
+            })
 
             // If the resulting promise is rejected, send an error to the far end
-            .catch((error: Error) => this._channel.send({
-                id,
-                message: `${error}`,
-                param,
-                slotName,
-                stack: error.stack || '',
-                type: 'error'
-            }))
+            .catch(async (error: Error) => {
+                await this.autoReconnect()
+                if (!this.isDisconnected()) {
+                    this._channel.send({
+                        id,
+                        message: `${error}`,
+                        param,
+                        slotName,
+                        stack: error.stack || '',
+                        type: 'error'
+                    })
+                }
+            })
     }
 
     /**

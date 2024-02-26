@@ -68,7 +68,6 @@ describe('Transport', () => {
             expect(channel.sendSpy).not.toHaveBeenCalledWith({ type: 'handler_unregistered', slotName, param })
         })
 
-
         it('should call the appropriate handler when a request is received', async () => {
 
             const slotName = 'buildCelery'
@@ -100,6 +99,86 @@ describe('Transport', () => {
                 data: {
                     color: 'blue'
                 }
+            })
+        })
+
+        describe('when the channel has autoReconnect capability', () => {
+            it('should call the handler when a request is received if the channel went disconnected', async () => {
+
+                const slotName = 'buildCelery'
+                const handler = slots[slotName][0]
+
+                // Register handler on slot
+                transport.registerHandler(slotName, param, handler)
+
+                const request: TransportMessage = {
+                    type: 'request',
+                    slotName,
+                    id: '5',
+                    param,
+                    data: {
+                        height: 5,
+                        constitution: 'strong'
+                    }
+                }
+
+                channel.callDisconnected()
+                channel.fakeReceive(request)
+
+                await flushPromises()
+                expect(handler).toHaveBeenCalledWith(request.data)
+                expect(channel.sendSpy).toHaveBeenCalledWith({
+                    slotName,
+                    type: 'response',
+                    id: '5',
+                    param,
+                    data: {
+                        color: 'blue'
+                    }
+                })
+            })
+        })
+
+        describe('when the channel does not have autoReconnect capability', () => {
+            beforeEach(() => {
+                channel = new TestChannel({ withAutoReconnect: false })
+                transport = new Transport(channel)
+                channel.callConnected()
+            })
+
+            it('should not call the handler when a request is received if the channel went disconnected', async () => {
+
+                const slotName = 'buildCelery'
+                const handler = slots[slotName][0]
+
+                // Register handler on slot
+                transport.registerHandler(slotName, param, handler)
+
+                const request: TransportMessage = {
+                    type: 'request',
+                    slotName,
+                    id: '5',
+                    param,
+                    data: {
+                        height: 5,
+                        constitution: 'strong'
+                    }
+                }
+
+                channel.fakeReceive(request)
+                channel.callDisconnected()
+
+                await flushPromises()
+                expect(handler).toHaveBeenCalledWith(request.data)
+                expect(channel.sendSpy).not.toHaveBeenCalledWith({
+                    slotName,
+                    type: 'response',
+                    id: '5',
+                    param,
+                    data: {
+                        color: 'blue'
+                    }
+                })
             })
         })
 
