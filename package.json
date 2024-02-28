@@ -73,6 +73,7 @@
     }
   ],
   "resolutions": {
-    "@babel/traverse": "7.24.0"
+    "@babel/traverse": "7.24.0",
+    "json5": "2.2.3"
   }
 }
