@@ -70,5 +70,8 @@
       "name": "Denis Schneider",
       "email": "highfivedenis@gmail.com"
     }
-  ]
+  ],
+  "resolutions": {
+    "@babel/traverse": "7.24.0"
+  }
 }
