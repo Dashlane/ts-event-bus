@@ -5,6 +5,9 @@
 [![Build Status](https://github.com/Dashlane/ts-event-bus/actions/workflows/nodejs.yml/badge.svg)](https://github.com/Dashlane/ts-event-bus/actions/workflows/nodejs.yml)
 [![Dependency Status](https://david-dm.org/Dashlane/ts-event-bus.svg)](https://david-dm.org/Dashlane/ts-event-bus)
 
+> [!CAUTION]
+> This package is no longer maintained. It is strongly advised against using it in any new project.
+
 Distributed messaging in Typescript
 
 `ts-event-bus` is a lightweight distributed messaging system. It allows several modules, potentially distributed over different runtime spaces to communicate through typed messages.
