@@ -44,6 +44,7 @@
     "@babel/preset-typescript": "^7.12.7",
     "@types/chrome": "^0.0.155",
     "@types/jest": "^29.5.12",
+    "@types/node": "^16.18.84",
     "@types/ws": "^3.2.1",
     "expect-type": "^0.13.0",
     "husky": "^4.3.8",
