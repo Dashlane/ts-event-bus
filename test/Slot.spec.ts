@@ -3,6 +3,7 @@ import { TestChannel } from './TestChannel'
 import { Transport } from './../src/Transport'
 import { DEFAULT_PARAM } from './../src/Constants'
 import { TransportRegistrationMessage } from './../src/Message'
+import { flushPromises } from './testing-utils'
 
 const makeTestTransport = () => {
     const channel = new TestChannel()
@@ -145,9 +146,7 @@ describe('connectSlot', () => {
                 type: 'handler_registered'
             })
 
-            // setTimeout(0) to yield control to ts-event-bus internals,
-            // so that the call to handlers can be processed
-            await new Promise(resolve => setTimeout(resolve, 0))
+            await flushPromises()
 
             // Once a remote handler is registered, both local and remote should be called
             expect(localCalled).toEqual(true)

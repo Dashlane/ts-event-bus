@@ -9,8 +9,18 @@ export class TestChannel extends GenericChannel {
 
     public autoReconnectSpy = jest.fn()
 
-    constructor() {
+    constructor(
+        options: { withAutoReconnect: boolean } = { withAutoReconnect: true }
+    ) {
         super()
+
+        if (options.withAutoReconnect) {
+            this.autoReconnect = () => {
+                this.callConnected()
+
+                this.autoReconnectSpy()
+            }
+        }
     }
 
     /**
@@ -39,11 +49,7 @@ export class TestChannel extends GenericChannel {
         this._error(new Error('LOLOL'))
     }
 
-    public autoReconnect() {
-        this.callConnected()
-
-        this.autoReconnectSpy()
-    }
+    public autoReconnect?: () => void | undefined
 
     public send(message: TransportMessage) {
         this.sendSpy(message)

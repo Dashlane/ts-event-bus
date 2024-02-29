@@ -2,6 +2,7 @@ import { slot } from './../src/Slot'
 import { combineEvents, createEventBus } from './../src/Events'
 import { TestChannel } from './TestChannel'
 import { DEFAULT_PARAM } from './../src/Constants'
+import { flushPromises } from './testing-utils'
 
 describe('combineEvents()', () => {
 
@@ -93,7 +94,7 @@ describe('createEventBus()', () => {
             data: 5
         })
 
-        await Promise.resolve() // yied to ts-event-bus internals
+        await flushPromises()
         expect(channel.sendSpy).toHaveBeenCalledWith({
             type: 'response',
             slotName: 'numberToString',
